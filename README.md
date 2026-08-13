@@ -35,37 +35,28 @@ nvm、pyenv 和手写 Android PATH 被 Nix/Home Manager 取代。私人局域网
 
 ## 1. Windows 侧准备
 
-在管理员 PowerShell 中更新 WSL：
+### 1.1 更新 WSL
+
+在管理员 PowerShell 中运行：
 
 ```powershell
 wsl --update
 wsl --shutdown
 ```
 
-从 NixOS-WSL Releases 下载最新的 `nixos.wsl`。WSL 2.4.4 及以上可以双击安装，也可以运行：
+### 1.2 配置 WSL 2
 
-```powershell
-wsl --install --from-file .\nixos.wsl --name NixOS
+把 `windows/.wslconfig.example` 复制到：
+
+```text
+%UserProfile%\.wslconfig
 ```
 
-如需明确启用 7950X 的 32 个逻辑处理器和 WSLg，可把 `windows/.wslconfig.example` 复制到 `%UserProfile%\.wslconfig`，再运行 `wsl --shutdown`。没有写死内存上限，避免在不知道主机内存容量时做错误限制。
-
-WSLg 还要求 Windows 安装支持 WSL 的最新 NVIDIA 驱动。Powerlevel10k 在 Windows Terminal 中显示正确图标，则需要在 Windows 安装 MesloLGS Nerd Font v3，并在 Terminal 配置中选用它；NixOS 内也已安装对应字体，供 WSLg GUI 使用。
-
-## 2. 中国网络与 Windows FLClash
-
-如果 Windows 正在运行 FLClash，NixOS-WSL 不一定需要额外写死代理。推荐按以下顺序配置：
-
-1. Windows 使用较新的 WSL 2，并启用镜像网络。
-2. FLClash 开启 TUN 模式，或开启 Windows 系统代理。
-3. 先验证 WSL、Nix daemon 和 Docker 是否已经能联网。
-4. 只有终端可以联网、Nix daemon 或 Docker 仍然失败时，才添加显式代理模块。
-
-### 2.1 推荐：镜像网络与自动代理
-
-Windows 11 22H2 及以上可在 `%UserProfile%\.wslconfig` 中使用：
+推荐内容：
 
 ```ini
+# Ryzen 9 7950X: 32 logical processors.
+# Keep memory dynamic; do not hard-code a memory limit.
 [wsl2]
 processors=32
 guiApplications=true
@@ -80,166 +71,319 @@ autoMemoryReclaim=gradual
 sparseVhd=true
 ```
 
-应用配置：
+应用：
 
 ```powershell
 wsl --shutdown
+```
+
+这套配置依赖 mirrored networking，使 NixOS-WSL 可以通过 `127.0.0.1` 访问 Windows 上的 FLClash；`autoProxy=true` 会尝试把 Windows 系统代理同步到普通 WSL shell。
+
+### 1.3 Windows / FLClash
+
+推荐：
+
+- FLClash 开启 TUN 模式，或开启 Windows 系统代理。
+- 记下 Mixed Port；本文以下统一假设为 `7890`。
+- mirrored 模式下一般不需要开启“允许局域网”。
+- Windows 安装支持 WSL 的最新 NVIDIA 驱动，以供 WSLg / RTX 4090 使用。
+- Windows Terminal 如需正确显示 Powerlevel10k 图标，安装 MesloLGS Nerd Font v3。
+
+### 1.4 安装 NixOS-WSL
+
+从 NixOS-WSL Releases 下载 `nixos.wsl`。WSL 2.4.4 及以上可运行：
+
+```powershell
+wsl --install --from-file .\nixos.wsl --name NixOS
+```
+
+进入：
+
+```powershell
 wsl -d NixOS
 ```
 
-镜像网络允许 WSL 通过 `127.0.0.1` 访问 Windows 服务，`autoProxy=true` 会尝试把 Windows HTTP 系统代理同步到 WSL。相关行为以 [Microsoft WSL 网络文档](https://learn.microsoft.com/zh-cn/windows/wsl/networking) 为准。
+---
 
-FLClash 侧建议：
+## 2. 全新安装 Quick Start
 
-- 优先使用 TUN 模式，或者开启“系统代理”。
-- 记下 FLClash 的 Mixed Port（混合端口），下面以 `7890` 为例。
-- 镜像网络下通常不需要开启“允许局域网”；避免无意中把代理暴露给整个局域网。
-- 如果 FLClash 只监听 `127.0.0.1`，镜像网络通常仍可从 WSL 访问。
+这一节按顺序执行即可。第一次安装不要先依赖 VS Code Remote；先完成系统切换和 WSL 重启，再连接 VS Code。
 
-测试 Windows 代理端口：
+### 2.1 设置 `nixos` 用户密码
 
-```zsh
-curl -x http://127.0.0.1:7890 \
-  -I https://cache.nixos.org/nix-cache-info
-```
-
-即使访问的是 HTTPS 网站，HTTP/Mixed 代理地址通常仍写成 `http://127.0.0.1:7890`，由 HTTP CONNECT 建立隧道；不要在未确认端口协议时改成 `https://127.0.0.1:7890`。
-
-### 2.2 先判断是否需要显式代理
-
-进入 NixOS-WSL 后运行：
-
-```zsh
-env | grep -i proxy
-curl -I https://github.com
-curl -I https://cache.nixos.org/nix-cache-info
-nix flake metadata github:NixOS/nixpkgs
-docker pull hello-world
-```
-
-如果这些命令都成功，就不需要再把代理地址写入 NixOS。这样 FLClash 未启动时，NixOS 仍可直接联网，也不会因固定端口变化而失效。
-
-### 2.3 终端能联网，但 Nix 或 Docker 不能联网
-
-只在 zsh 中设置 `HTTP_PROXY` 并不保证系统级 `nix-daemon` 和 Docker daemon 能看到它。Nix 官方也要求多用户 daemon 获得对应的代理环境变量，参见 [Nix 代理环境变量文档](https://releases.nixos.org/nix/nix-2.31.2/manual/installation/env-variables.html)。
-
-如有需要，可创建 `modules/nixos/proxy.nix`，把 `7890` 换成 FLClash 实际 Mixed Port：
-
-```nix
-{ ... }:
-
-let
-  proxy = "http://127.0.0.1:7890";
-  noProxy = "localhost,127.0.0.1,::1,.local";
-  proxyEnvironment = {
-    HTTP_PROXY = proxy;
-    HTTPS_PROXY = proxy;
-    ALL_PROXY = proxy;
-    NO_PROXY = noProxy;
-    http_proxy = proxy;
-    https_proxy = proxy;
-    all_proxy = proxy;
-    no_proxy = noProxy;
-  };
-in
-{
-  environment.sessionVariables = proxyEnvironment;
-  systemd.services.nix-daemon.environment = proxyEnvironment;
-  systemd.services.docker.environment = proxyEnvironment;
-}
-```
-
-在 `hosts/wsl/default.nix` 的 `imports` 中加入：
-
-```nix
-../../modules/nixos/proxy.nix
-```
-
-然后应用并重启两个 daemon：
-
-```zsh
-sudo nixos-rebuild switch --flake .#wsl
-sudo systemctl restart nix-daemon.service
-sudo systemctl restart docker.service
-```
-
-显式代理模块的代价是：FLClash 没有运行、监听端口改变或代理不可用时，Nix 和 Docker 也会无法联网。因此只要 TUN/自动代理已经覆盖 WSL，就不建议启用此模块。如果代理包含用户名、密码或令牌，不要把认证信息直接写进 Flake；Nix 配置可能进入可读的 Nix store。
-
-### 2.4 备用：WSL 默认 NAT 网络
-
-没有使用 mirrored 模式时，WSL 中的 `127.0.0.1` 不是 Windows 的回环地址。先在 WSL 中取得 Windows 主机 IP：
-
-```zsh
-ip route show default | awk '{print $3}'
-```
-
-假设输出 `172.30.96.1`，代理地址就是：
-
-```text
-http://172.30.96.1:7890
-```
-
-此时 FLClash 通常需要开启“允许局域网”并监听 `0.0.0.0`，Windows/Hyper-V 防火墙也必须允许 WSL 访问该端口。开放 LAN 监听会扩大暴露面，应仅允许可信网络和必要端口。NAT 模式下 Windows 主机 IP 可能在 WSL 重启后改变，因此不适合直接硬编码进 Nix 模块。
-
-### 2.5 下载源建议
-
-先确保以下官方源能稳定通过 FLClash：
-
-- `https://cache.nixos.org`
-- `https://github.com`
-- `https://dl.google.com/android/repository/`
-
-不要一开始就同时更换多个第三方 Nix 二进制缓存或软件源。先保持官方源不变，更容易区分代理、DNS、证书和缓存签名问题；确认代理链路稳定后，再按实际速度决定是否增加可信缓存。
-
-## 3. 首次部署
-
-把本目录放到 NixOS-WSL 的 Linux 文件系统，例如 `~/nixos-wsl-flake`。不要从 `/mnt/c` 直接构建大型项目；Linux 文件系统的权限语义和 I/O 表现更合适。
-
-默认用户名是 NixOS-WSL 镜像已有的 `nixos`。如果镜像中已安全创建别的用户，先修改 `flake.nix` 的 `userSettings.username`，并同步确认 `/home/<用户名>` 与 UID。
-
-先为默认用户设置密码，后续 sudo 会正常要求该密码：
+全新 NixOS-WSL 先执行：
 
 ```bash
 passwd
 ```
 
-首次锁定输入并检查配置：
+后续 `sudo` 会要求这个密码。
+
+如果已经进入“`sudo` 要求密码，但用户从未设置密码”的状态，可在 Windows PowerShell 中：
+
+```powershell
+wsl -d NixOS -u root
+```
+
+然后：
+
+```bash
+passwd nixos
+exit
+```
+
+### 2.2 把 Flake 放入 Linux 文件系统
+
+推荐：
+
+```text
+/home/nixos/nixos-wsl-flake
+```
+
+不要直接在 `/mnt/c`、`/mnt/d` 等 Windows 挂载盘中构建大型 Nix 项目；Linux 文件系统的 I/O、权限语义和文件监控行为更合适。
+
+进入目录：
 
 ```bash
 cd ~/nixos-wsl-flake
+```
+
+### 2.3 确认普通 shell 已获得 Windows 代理
+
+```bash
+env | grep -i proxy
+```
+
+在当前 FLClash 配置下，应该能看到类似：
+
+```text
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+http_proxy=http://127.0.0.1:7890
+https_proxy=http://127.0.0.1:7890
+```
+
+继续测试：
+
+```bash
+curl -I https://github.com
+curl -I https://cache.nixos.org/nix-cache-info
+```
+
+还可以直接指定 Mixed Port：
+
+```bash
+curl -x http://127.0.0.1:7890 \
+  -I https://cache.nixos.org/nix-cache-info
+```
+
+即使目标是 HTTPS，HTTP/Mixed 代理地址通常仍写作：
+
+```text
+http://127.0.0.1:7890
+```
+
+由 HTTP CONNECT 建立 HTTPS 隧道。
+
+### 2.4 第一次构建前，临时给 `nix-daemon` 注入代理
+
+这里是全新安装最重要的 bootstrap 步骤。
+
+WSL `autoProxy=true` 能给用户 shell 设置代理，但 systemd 管理的 `nix-daemon` 不会自动继承用户环境。第一次 `nixos-rebuild` 之前，永久的 `modules/nixos/proxy.nix` 还没有生效，因此先创建仅当前启动有效的 runtime override：
+
+```bash
+sudo mkdir -p /run/systemd/system/nix-daemon.service.d
+
+sudo tee /run/systemd/system/nix-daemon.service.d/proxy.conf >/dev/null <<'EOF'
+[Service]
+Environment="HTTP_PROXY=http://127.0.0.1:7890"
+Environment="HTTPS_PROXY=http://127.0.0.1:7890"
+Environment="http_proxy=http://127.0.0.1:7890"
+Environment="https_proxy=http://127.0.0.1:7890"
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart nix-daemon.service
+```
+
+确认：
+
+```bash
+systemctl show nix-daemon.service -p Environment
+```
+
+应看到 `HTTP_PROXY` / `HTTPS_PROXY`。
+
+`/run` 是临时运行时目录；WSL/NixOS 重启后这个 override 会消失。第一次系统切换成功后，`modules/nixos/proxy.nix` 会永久接管 `nix-daemon` 和 Docker daemon 的代理。
+
+### 2.5 首次检查 Flake
+
+全新镜像可能尚未全局开启 `nix-command` / `flakes`，因此首次命令显式开启：
+
+```bash
 nix --extra-experimental-features 'nix-command flakes' flake lock
+
 nix --extra-experimental-features 'nix-command flakes' flake show
 ```
 
-应用系统与 Home Manager：
+如果直接运行 `nix flake ...` 时出现：
 
-```bash
-sudo nixos-rebuild switch --flake .#wsl
+```text
+error: experimental Nix feature 'nix-command' is disabled
 ```
 
-回到 Windows PowerShell 重启 WSL：
+这不是网络错误。
+
+此时也不要用：
+
+```bash
+docker pull hello-world
+```
+
+来判断网络，因为 Docker 尚未由本 Flake 安装。
+
+### 2.6 第一次 `nixos-rebuild`
+
+第一次重建需要同时覆盖两条网络链路：
+
+```text
+sudo/nixos-rebuild -> GitHub / Flake inputs
+nix-daemon        -> cache.nixos.org
+```
+
+因此第一次使用：
+
+```bash
+sudo env \
+  HTTP_PROXY=http://127.0.0.1:7890 \
+  HTTPS_PROXY=http://127.0.0.1:7890 \
+  http_proxy=http://127.0.0.1:7890 \
+  https_proxy=http://127.0.0.1:7890 \
+  NIX_CONFIG="experimental-features = nix-command flakes" \
+  nixos-rebuild switch --flake .#wsl
+```
+
+第一次构建会下载 Android SDK/NDK、Flutter、Rust、LLVM、JDK、Docker、Node 等大量依赖。数 GiB 的网络下载和十余 GiB 的 Nix store 数据属于正常现象。
+
+如果进度长时间停在：
+
+```text
+fetching ... from https://cache.nixos.org
+```
+
+优先检查：
+
+```bash
+systemctl show nix-daemon.service -p Environment
+```
+
+如果出现：
+
+```text
+https://github.com/...tar.gz
+Connection timed out after 15000 milliseconds
+```
+
+优先检查 root/sudo 是否获得代理：
+
+```bash
+sudo env | grep -i proxy
+```
+
+### 2.7 完全重启 WSL
+
+第一次系统切换完成后，在 Windows PowerShell：
 
 ```powershell
 wsl --shutdown
 wsl -d NixOS
 ```
 
-首次进入 zsh 时，zinit 会下载插件。zinit 本体由 Flake 锁定，插件仍由 zinit 原生管理；更新插件使用 `zinit update --all`。
+这一步很重要，因为它会让 `/etc/wsl.conf`、DrvFs automount、WSLg、用户 shell、systemd 服务和永久代理全部从冷启动状态重新加载。
 
-## 4. 验证
+---
+
+## 3. 首次启动验证
+
+重新进入 NixOS 后执行：
+
+```bash
+nix flake metadata github:NixOS/nixpkgs
+
+docker --version
+
+systemctl is-active nix-daemon
+systemctl is-active docker
+```
+
+预期两个 systemd 服务均返回：
+
+```text
+active
+```
+
+确认永久 daemon 代理：
+
+```bash
+systemctl show nix-daemon.service -p Environment
+systemctl show docker.service -p Environment
+```
+
+两者都应该包含：
+
+```text
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+```
+
+确认 `sudo` 会保留 WSL 自动注入的代理：
+
+```bash
+env | grep -i proxy
+sudo env | grep -i proxy
+```
+
+`modules/nixos/base.nix` 已声明：
+
+```nix
+security.sudo.extraConfig = ''
+  Defaults env_keep += "HTTP_PROXY HTTPS_PROXY NO_PROXY"
+  Defaults env_keep += "http_proxy https_proxy no_proxy"
+'';
+```
+
+因此以后应可以直接运行：
+
+```bash
+sudo nixos-rebuild switch --flake .#wsl
+```
+
+无需长期使用 `sudo -E`，也无需每次手写 `sudo env HTTP_PROXY=...`。
+
+再验证 Docker：
+
+```bash
+docker run --rm hello-world
+```
+
+最后执行项目自带检查：
 
 ```bash
 bash scripts/doctor.sh
+```
+
+也可以逐项确认：
+
+```bash
 java -version
 adb version
 rustc --version
 node --version
 pnpm --version
 flutter doctor -v
-docker run --rm hello-world
 ```
 
-WSLg 图形链路可检查：
+WSLg：
 
 ```bash
 glxinfo -B
@@ -247,7 +391,178 @@ vulkaninfo --summary
 android-studio
 ```
 
-## 5. Android、ADB 与模拟器
+---
+
+## 4. Windows VS Code 连接 NixOS-WSL
+
+推荐使用 **Windows 版 VS Code + Microsoft WSL 扩展**，不需要给 NixOS 额外配置 SSH server。
+
+首次系统切换和 `wsl --shutdown` 完成后，在 VS Code 命令面板执行：
+
+```text
+WSL: Connect to WSL
+```
+
+选择：
+
+```text
+NixOS
+```
+
+然后打开：
+
+```text
+/home/nixos/nixos-wsl-flake
+```
+
+也可以进入 NixOS 后：
+
+```bash
+cd ~/nixos-wsl-flake
+code .
+```
+
+### 4.1 `wslServer.sh: Permission denied`
+
+本配置的 `modules/nixos/wsl.nix` 已使用：
+
+```text
+metadata,uid=1000,gid=100,umask=022,fmask=022
+```
+
+这是为了允许 VS Code WSL 扩展执行 Windows 文件系统中的：
+
+```text
+wslServer.sh
+wslDownload.sh
+```
+
+如果 VS Code 日志出现：
+
+```text
+.../ms-vscode-remote.remote-wsl-.../scripts/wslServer.sh: Permission denied
+```
+
+检查：
+
+```bash
+mount | grep ' /mnt/c '
+```
+
+不要出现：
+
+```text
+fmask=111
+```
+
+`fmask=111` 会屏蔽普通文件的所有执行位，使 VS Code Remote WSL 的脚本变成 `-rw-r--r--`。
+
+修改 automount 配置后必须执行：
+
+```powershell
+wsl --shutdown
+wsl -d NixOS
+```
+
+才能重新挂载 `/mnt/c`。
+
+不建议把手工 `chmod +x` VS Code 扩展目录作为长期解决方案，因为 VS Code WSL 扩展升级后脚本目录会变化。
+
+---
+
+## 5. 网络与代理设计
+
+当前配置把代理职责分为三层：
+
+```text
+Windows FLClash / WSL autoProxy
+    |
+    +-- 普通用户 shell
+    |
+    +-- sudo
+    |     `-- base.nix 的 env_keep
+    |
+    +-- systemd daemons
+          +-- nix-daemon -> proxy.nix
+          `-- docker     -> proxy.nix
+```
+
+`modules/nixos/proxy.nix` 当前固定使用：
+
+```text
+http://127.0.0.1:7890
+```
+
+如果 FLClash Mixed Port 改变，需要同步修改该文件。
+
+### 5.1 为什么不把代理再次写进 `environment.sessionVariables`
+
+普通 shell 已由 WSL `autoProxy=true` 自动处理。NixOS 只显式管理 systemd daemon，可以避免 WSL 自动代理和 NixOS shell 变量两套机制互相覆盖。
+
+### 5.2 mirrored 网络下的推荐配置
+
+mirrored networking 下，WSL 可以直接访问 Windows `127.0.0.1`，因此 FLClash 通常无需开启“允许局域网”。
+
+### 5.3 NAT 网络备用方案
+
+如果没有使用 mirrored networking，WSL 中的 `127.0.0.1` 不是 Windows 回环地址。
+
+取得 Windows 主机 IP：
+
+```bash
+ip route show default | awk '{print $3}'
+```
+
+例如：
+
+```text
+172.30.96.1
+```
+
+则代理可能需要改为：
+
+```text
+http://172.30.96.1:7890
+```
+
+此模式下 FLClash 通常还需要允许 LAN / 监听 `0.0.0.0`，Windows/Hyper-V 防火墙也要允许访问。WSL NAT 主机 IP 可能随重启改变，因此本配置优先使用 mirrored networking。
+
+### 5.4 下载源
+
+先保证官方源可以稳定访问：
+
+```text
+https://cache.nixos.org
+https://github.com
+https://dl.google.com/android/repository/
+```
+
+不要在排障初期同时替换多个第三方 binary cache 或镜像源，否则会增加 DNS、代理、证书、缓存签名问题的判断难度。
+
+---
+
+## 6. 为什么第一次构建特别慢
+
+第一次 `nixos-rebuild` 需要把整套开发环境加入 `/nix/store`，包括 Android SDK/NDK、Flutter、Rust、JDK、LLVM、Node、Docker 等。
+
+进度类似：
+
+```text
+[0/733 built, ... copied (.../11.8 GiB), .../5.6 GiB DL]
+```
+
+并不意味着每次重建都会重新下载这些内容。
+
+Nix 会复用已有 store paths。第一次系统成功后，普通配置修改再执行：
+
+```bash
+sudo nixos-rebuild switch --flake .#wsl
+```
+
+通常会快得多。
+
+
+## 7. Android、ADB 与模拟器
 
 Android SDK 位于 Nix store 的只读组合结果，`ANDROID_SDK_ROOT`、`ANDROID_HOME`、`JAVA_HOME` 和 NDK 路径已自动设置。SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
 
@@ -267,7 +582,7 @@ usbipd attach --wsl --busid <BUSID>
 
 然后在 WSL 中运行 `adb devices`。如确实要实验 WSL 内模拟器，把 Android 模块中的 `includeEmulator` 改成 `true` 并添加 system image；这会显著增加下载体积，且图形/KVM 加速兼容性取决于当前 WSL 版本。
 
-## 6. Docker 后端
+## 8. Docker 后端
 
 默认启用的是 NixOS 内原生 Docker daemon，`nixos` 用户已加入 `docker` 组。没有启用 Docker Desktop integration，避免两个 daemon 混用。
 
@@ -277,13 +592,13 @@ usbipd attach --wsl --busid <BUSID>
 - 把 `wsl.docker-desktop.enable` 改为 `true`；
 - 在 Docker Desktop 设置中启用该 NixOS WSL 发行版。
 
-## 7. 7950X 与 RTX 4090 的职责划分
+## 9. 7950X 与 RTX 4090 的职责划分
 
 - 7950X 的微码、核心调度和 WSL Linux 内核由 Windows/WSL 管理，NixOS-WSL 不安装裸机 AMD 微码模块。Nix 构建已使用 `max-jobs = auto` 和全部可用核心。
 - RTX 4090 的内核驱动同样安装在 Windows，不要在 NixOS-WSL 中启用 `hardware.nvidia`。`wsl.useWindowsDriver = true` 会接入 Windows 提供的 WSL 图形库，供 WSLg/OpenGL 使用。
 - 如果 Windows 驱动暴露了工具，可运行 `/usr/lib/wsl/lib/nvidia-smi` 检查 GPU。CUDA Toolkit 与 NVIDIA Container Toolkit 不在本次所选环境内，需要时应单独增加模块并独立验证。
 
-## 8. 更新与回滚
+## 10. 更新与回滚
 
 更新所有 Flake 输入并重建：
 
