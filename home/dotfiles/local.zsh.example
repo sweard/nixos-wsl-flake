@@ -1,0 +1,10 @@
+# 只放机器私有、公司网络相关或带秘密的配置；此文件不会被自动 source。
+# 复制为 ~/.config/zsh/local.zsh 后生效：
+#   cp ~/.config/zsh/local.zsh.example ~/.config/zsh/local.zsh
+
+# export COMPANY_DASHBOARD_HOST="http://example.internal:8080"
+# export SOME_TOOL_TOKEN="从密码管理器注入，不要提交到 Git"
+
+# 可选：仅对当前 WSL 用户设置 Git 身份。
+# git config --global user.name "Your Name"
+# git config --global user.email "you@example.com"

@@ -1,0 +1,11 @@
+# 复制到 Windows 的 %UserProfile%\.wslconfig，然后执行 wsl --shutdown。
+# 7950X 有 32 个逻辑处理器；不指定 memory，让 WSL 按宿主机内存动态管理。
+[wsl2]
+processors=32
+guiApplications=true
+nestedVirtualization=true
+localhostForwarding=true
+
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true

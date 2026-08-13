@@ -1,0 +1,103 @@
+{ config
+, inputs
+, lib
+, ...
+}:
+let
+  p10kInstantPrompt = lib.mkOrder 500 ''
+    # Powerlevel10k instant prompt；需要尽量靠近 .zshrc 顶部。
+    if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
+      source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
+    fi
+  '';
+
+  zinitBootstrap = lib.mkOrder 550 ''
+    export ZINIT_HOME="$HOME/.local/share/zinit/zinit.git"
+    source "$ZINIT_HOME/zinit.zsh"
+    autoload -Uz _zinit
+    (( ''${+_comps} )) && _comps[zinit]=_zinit
+  '';
+
+  zinitBeforeCompletion = lib.mkOrder 560 ''
+    # annex 和补全插件需要先于 Home Manager 的 compinit（order 570）。
+    zinit light-mode for \
+      zdharma-continuum/zinit-annex-as-monitor \
+      zdharma-continuum/zinit-annex-bin-gem-node \
+      zdharma-continuum/zinit-annex-patch-dl \
+      zdharma-continuum/zinit-annex-rust
+
+    zinit light zsh-users/zsh-completions
+  '';
+
+  zinitPlugins = lib.mkOrder 1000 ''
+    # 当前常用交互插件；syntax-highlighting 在所有 widget 之后单独加载。
+    zinit light-mode for \
+      zsh-users/zsh-history-substring-search \
+      zsh-users/zsh-autosuggestions
+
+    zinit ice git
+    zinit snippet OMZ::plugins/z
+    zinit snippet OMZ::plugins/git
+    if (( $+commands[brew] )); then
+      zinit snippet OMZ::plugins/brew
+    fi
+
+    zinit ice depth=1
+    zinit light romkatv/powerlevel10k
+    [[ -r "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+  '';
+
+  localConfiguration = lib.mkOrder 1400 ''
+    [[ -r "$HOME/.openclaw/completions/openclaw.zsh" ]] && source "$HOME/.openclaw/completions/openclaw.zsh"
+    [[ -r "$HOME/.config/zsh/local.zsh" ]] && source "$HOME/.config/zsh/local.zsh"
+  '';
+
+  syntaxHighlighting = lib.mkOrder 1500 ''
+    zinit light zsh-users/zsh-syntax-highlighting
+  '';
+in
+{
+  home.file = {
+    ".local/share/zinit/zinit.git".source = inputs.zinit;
+    ".p10k.zsh".source = ../../dotfiles/p10k.zsh;
+    ".config/zsh/local.zsh.example".source = ../../dotfiles/local.zsh.example;
+  };
+
+  home.sessionPath = [
+    "${config.home.homeDirectory}/.local/bin"
+    "${config.home.homeDirectory}/.git-ai/bin"
+  ];
+
+  programs.zsh = {
+    enable = true;
+    dotDir = config.home.homeDirectory;
+    enableCompletion = true;
+    defaultKeymap = "emacs";
+
+    history = {
+      path = "${config.home.homeDirectory}/.zsh_history";
+      size = 50000;
+      save = 50000;
+      extended = true;
+      expireDuplicatesFirst = true;
+      ignoreDups = true;
+      ignoreSpace = true;
+      share = true;
+    };
+
+    setOptions = [
+      "AUTO_CD"
+      "INTERACTIVE_COMMENTS"
+      "NO_BEEP"
+    ];
+
+    initContent = lib.mkMerge [
+      p10kInstantPrompt
+      zinitBootstrap
+      zinitBeforeCompletion
+      zinitPlugins
+      localConfiguration
+      syntaxHighlighting
+    ];
+  };
+}
