@@ -1,12 +1,10 @@
-{ pkgs
-, userSettings
-, ...
-}:
+{ pkgs, ... }:
 {
   imports = [
     ./base.nix
     ./docker.nix
     ./home-manager.nix
+    ./native-desktop.nix
   ];
 
   # VMware 与物理机统一使用 UEFI，以及安装文档约定的磁盘标签。
@@ -33,26 +31,7 @@
     };
   };
 
-  networking.networkmanager.enable = true;
-  users.users.${userSettings.username}.extraGroups = [ "networkmanager" ];
-
-  services = {
-    displayManager.sddm.enable = true;
-    desktopManager.plasma6.enable = true;
-    xserver.enable = true;
-    fstrim.enable = true;
-    pipewire = {
-      enable = true;
-      audio.enable = true;
-      alsa.enable = true;
-      alsa.support32Bit = true;
-      pulse.enable = true;
-    };
-  };
-
-  security.rtkit.enable = true;
-  programs.dconf.enable = true;
-  hardware.graphics.enable = true;
+  services.fstrim.enable = true;
 
   fonts.packages = [ pkgs.nerd-fonts.meslo-lg ];
 

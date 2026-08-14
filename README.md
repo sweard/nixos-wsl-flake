@@ -10,7 +10,30 @@
 | `.#vmware` | `nixos-vmware` | x86_64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
 | `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
 
-三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、Plasma 6、PipeWire、NetworkManager 和磁盘标签约定；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Plasma 6、Niri、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+
+### Plasma 与 Niri 桌面切换
+
+VMware 和物理机同时安装两个桌面会话，登录管理器统一使用 SDDM：
+
+- `Plasma (Wayland)`：保留的完整 KDE Plasma 6 桌面，也是默认会话。
+- `Niri`：滚动平铺式 Wayland 合成器会话。
+
+Plasma 6 的 NixOS 模块会让 SDDM greeter 本身运行在 KWin Wayland 上。开机进入 SDDM 后，在会话菜单中选择 Plasma 或 Niri 再登录；SDDM 会记住最近选择的会话。已经进入桌面时，先注销即可重新选择，不需要重建系统。
+
+两个会话共用推荐的系统服务：音频使用 PipeWire + WirePlumber，网络使用 NetworkManager。Niri 额外提供 Waybar 状态栏、Fuzzel 启动器、Alacritty 终端、Swaylock 锁屏、Mako 通知、KDE Polkit 认证代理和 `xwayland-satellite` X11 兼容层。
+
+Niri 上游默认配置的常用快捷键：
+
+- `Super+T`：打开 Alacritty。
+- `Super+D`：打开 Fuzzel。
+- `Super+Alt+L`：锁定屏幕。
+- `Super+Shift+E`：退出 Niri，返回 SDDM。
+- `Super+Shift+/`：显示完整快捷键提示。
+
+第一次进入 Niri 时，如果用户配置不存在，Niri 会生成 `~/.config/niri/config.kdl`。该文件可直接修改并实时重载；NixOS 不会覆盖个人定制。若要恢复与当前 Niri 版本一致的上游默认配置，可以先备份并移走该文件，再重新登录 Niri。
+
+在 VMware 中使用 Niri 必须启用虚拟机的 3D 加速；物理机配置已经为 RTX 4090 启用 NVIDIA DRM modesetting，这是 Niri Wayland 会话所需的基础条件。
 
 ### VMware 与物理机共同安装约定
 
