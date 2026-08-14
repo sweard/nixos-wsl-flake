@@ -36,19 +36,19 @@
     let
       commonUserSettings = {
         username = "nixos";
-        system = "x86_64-linux";
         timeZone = "Asia/Shanghai";
       };
 
       mkSystem =
-        { hostName
+        { system
+        , hostName
         , modules
         }:
         let
-          userSettings = commonUserSettings // { inherit hostName; };
+          userSettings = commonUserSettings // { inherit hostName system; };
         in
         nixpkgs.lib.nixosSystem {
-          system = userSettings.system;
+          inherit system;
           specialArgs = {
             inherit inputs userSettings;
           };
@@ -63,6 +63,7 @@
     {
       nixosConfigurations = {
         wsl = mkSystem {
+          system = "x86_64-linux";
           hostName = "nixos-wsl";
           modules = [
             nixos-wsl.nixosModules.default
@@ -71,17 +72,21 @@
         };
 
         vmware = mkSystem {
+          system = "aarch64-linux";
           hostName = "nixos-vmware";
           modules = [ ./hosts/vmware ];
         };
 
         physical = mkSystem {
+          system = "x86_64-linux";
           hostName = "nixos-physical";
           modules = [ ./hosts/physical ];
         };
       };
 
-      formatter.${commonUserSettings.system} =
-        nixpkgs.legacyPackages.${commonUserSettings.system}.nixfmt;
+      formatter = {
+        x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
+        aarch64-linux = nixpkgs.legacyPackages.aarch64-linux.nixfmt;
+      };
     };
 }
