@@ -4,9 +4,9 @@
     ./modules/development/common.nix
 #    ./modules/development/cpp.nix
 #    ./modules/development/android.nix
-#    ./modules/development/rust.nix
-#    ./modules/development/node.nix
-#    ./modules/development/python.nix
+    ./modules/development/rust.nix
+    ./modules/development/node.nix
+    ./modules/development/python.nix
 #    ./modules/development/flutter.nix
     ./modules/shell/zsh.nix
   ];
