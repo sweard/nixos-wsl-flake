@@ -1,0 +1,14 @@
+modules/nixos/wslg.nix
+  h_74ac6e576b13a5 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "dad636b1c625aba6ab0b55c8a1c96166df080d76",
+  "prompts": {},
+  "humans": {
+    "h_74ac6e576b13a5": {
+      "author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
