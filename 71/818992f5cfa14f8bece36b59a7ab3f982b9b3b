@@ -1,0 +1,21 @@
+modules/nixos/native-desktop.nix
+  s_ebf054d2e2bf2a::t_1a1af6ed8512d6 39
+hosts/vmware/default.nix
+  s_ebf054d2e2bf2a::t_1a1af6ed8512d6 10-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "71818992f5cfa14f8bece36b59a7ab3f982b9b3b",
+  "prompts": {},
+  "sessions": {
+    "s_ebf054d2e2bf2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe07-da42-7250-af8c-9d2f952d31fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
