@@ -36,12 +36,12 @@
   hardware.graphics.enable = true;
 
   # 上游默认 Niri 配置会调用 Waybar、Fuzzel、Alacritty 与 Swaylock。
+  # Mako 仅由下方 Niri 服务引用，避免其 D-Bus 服务在 Plasma 中抢占通知接口。
   # xwayland-satellite 由 Niri 按需启动，为 X11 应用提供兼容层。
   environment.systemPackages = with pkgs; [
     ghostty
     brightnessctl
     fuzzel
-    mako
     networkmanagerapplet
     playerctl
     swaylock
