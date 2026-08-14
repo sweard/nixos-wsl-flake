@@ -8,6 +8,10 @@
   services.displayManager.sddm.enable = true;
   services.displayManager.sddm.wayland.enable = true;
   services.displayManager.sddm.wayland.compositor = "kwin";
+  # SDDM 使用独立用户，不会继承 Plasma 用户会话中的 1.5 倍缩放。
+  # 保留 KWin Wayland 所需的 layer-shell 集成，并仅缩放登录界面。
+  services.displayManager.sddm.settings.General.GreeterEnvironment =
+    "QT_WAYLAND_SHELL_INTEGRATION=layer-shell,QT_SCALE_FACTOR=1.5";
 
   # 保留完整 Plasma 6 桌面与其 X11 兼容会话。
   services.desktopManager.plasma6.enable = true;
