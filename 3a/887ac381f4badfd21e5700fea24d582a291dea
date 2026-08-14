@@ -1,0 +1,31 @@
+docs/superpowers/specs/2026-08-14-switchable-niri-desktop.md
+  s_ebf054d2e2bf2a::t_f5490449da290e 1-26
+docs/superpowers/plans/2026-08-14-switchable-niri-desktop.md
+  s_ebf054d2e2bf2a::t_f5490449da290e 1-31,33-35,37-39,41-43,45-56,58-60,62-64,66-68,70-81,83-85,87-89,91-93,95-96
+  s_ebf054d2e2bf2a::t_e43118851694b8 32,36,40,44,57,61,65,69,82,86,90,94
+modules/nixos/native-workstation.nix
+  s_ebf054d2e2bf2a::t_bf2083df296084 1
+  s_ebf054d2e2bf2a::t_649138cd12bde6 7,34
+README.md
+  s_ebf054d2e2bf2a::t_8da328b29b6a0b 13-36
+modules/nixos/native-desktop.nix
+  s_ebf054d2e2bf2a::t_649138cd12bde6 1-6,11,13-73
+  s_ebf054d2e2bf2a::t_7d55051f20c32e 7-8
+  s_ebf054d2e2bf2a::t_9174bc7825eaca 9-10,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3a887ac381f4badfd21e5700fea24d582a291dea",
+  "prompts": {},
+  "sessions": {
+    "s_ebf054d2e2bf2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe07-da42-7250-af8c-9d2f952d31fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
