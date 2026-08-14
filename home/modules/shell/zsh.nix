@@ -1,33 +1,9 @@
 { config
 , inputs
 , lib
-, pkgs
 , ...
 }:
 let
-  # Flake inputs are immutable source trees without Git metadata. Teach zinit to
-  # skip self-update for that layout while leaving plugin updates untouched.
-  zinitSource = pkgs.runCommand "zinit-nix-managed" { } ''
-    cp -R ${inputs.zinit}/. "$out"
-    chmod -R u+w "$out"
-
-    substituteInPlace "$out/zinit-autoload.zsh" \
-      --replace-fail \
-      '    setopt extendedglob typesetsilent warncreateglobal
-
-    if .zi-check-for-git-changes "$ZINIT[BIN_DIR]"; then' \
-      '    setopt extendedglob typesetsilent warncreateglobal
-
-    # BIN_DIR can be an immutable Nix source tree without Git metadata.
-    if [[ ! -d "$ZINIT[BIN_DIR]/.git" ]]; then
-        (( ! OPTS[opt_-q,--quiet] )) && +zi-log \
-            "{info}Zinit is managed by Nix; run {cmd}nix flake update zinit{info} and rebuild.{rst}"
-        return 0
-    fi
-
-    if .zi-check-for-git-changes "$ZINIT[BIN_DIR]"; then'
-  '';
-
   p10kInstantPrompt = lib.mkOrder 500 ''
     # Powerlevel10k instant prompt；需要尽量靠近 .zshrc 顶部。
     if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
@@ -43,6 +19,20 @@ let
     export ZSH_CACHE_DIR="${config.xdg.cacheHome}/zinit"
 
     source "$ZINIT[BIN_DIR]/zinit.zsh"
+    # Load the lazy command implementations before overriding self-update;
+    # otherwise the first zinit command would load them and replace our guard.
+    builtin source "$ZINIT[BIN_DIR]/zinit-autoload.zsh"
+
+    # Flake inputs are immutable source trees without Git metadata. Disable
+    # only zinit's self-update; plugin and snippet updates remain untouched.
+    if [[ ! -d "$ZINIT[BIN_DIR]/.git" ]]; then
+      .zinit-self-update() {
+        (( ! OPTS[opt_-q,--quiet] )) && +zi-log \
+          "{info}Zinit is managed by Nix; run {cmd}nix flake update zinit{info} and rebuild.{rst}"
+        return 0
+      }
+    fi
+
     autoload -Uz _zinit
     (( ''${+_comps} )) && _comps[zinit]=_zinit
   '';
@@ -86,7 +76,7 @@ let
   '';
 in
 {
-  xdg.dataFile."zinit/zinit.git".source = zinitSource;
+  xdg.dataFile."zinit/zinit.git".source = inputs.zinit;
 
   home.file = {
     ".p10k.zsh".source = ../../dotfiles/p10k.zsh;
