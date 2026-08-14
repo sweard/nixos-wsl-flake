@@ -34,7 +34,7 @@
   # 上游默认 Niri 配置会调用 Waybar、Fuzzel、Alacritty 与 Swaylock。
   # xwayland-satellite 由 Niri 按需启动，为 X11 应用提供兼容层。
   environment.systemPackages = with pkgs; [
-    alacritty
+    ghostty
     brightnessctl
     fuzzel
     mako

@@ -30,6 +30,10 @@
     enable = true;
     lfs.enable = true;
     settings = {
+      user = {
+        name = "sweord";
+        email = "sweord@hotmail.com";
+      };
       core.autocrlf = "input";
       pull.rebase = false;
     };
