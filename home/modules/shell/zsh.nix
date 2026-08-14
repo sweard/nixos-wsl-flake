@@ -1,9 +1,33 @@
 { config
 , inputs
 , lib
+, pkgs
 , ...
 }:
 let
+  # Flake inputs are immutable source trees without Git metadata. Teach zinit to
+  # skip self-update for that layout while leaving plugin updates untouched.
+  zinitSource = pkgs.runCommand "zinit-nix-managed" { } ''
+    cp -R ${inputs.zinit}/. "$out"
+    chmod -R u+w "$out"
+
+    substituteInPlace "$out/zinit-autoload.zsh" \
+      --replace-fail \
+      '    setopt extendedglob typesetsilent warncreateglobal
+
+    if .zi-check-for-git-changes "$ZINIT[BIN_DIR]"; then' \
+      '    setopt extendedglob typesetsilent warncreateglobal
+
+    # BIN_DIR can be an immutable Nix source tree without Git metadata.
+    if [[ ! -d "$ZINIT[BIN_DIR]/.git" ]]; then
+        (( ! OPTS[opt_-q,--quiet] )) && +zi-log \
+            "{info}Zinit is managed by Nix; run {cmd}nix flake update zinit{info} and rebuild.{rst}"
+        return 0
+    fi
+
+    if .zi-check-for-git-changes "$ZINIT[BIN_DIR]"; then'
+  '';
+
   p10kInstantPrompt = lib.mkOrder 500 ''
     # Powerlevel10k instant prompt；需要尽量靠近 .zshrc 顶部。
     if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
@@ -12,8 +36,13 @@ let
   '';
 
   zinitBootstrap = lib.mkOrder 550 ''
-    export ZINIT_HOME="$HOME/.local/share/zinit/zinit.git"
-    source "$ZINIT_HOME/zinit.zsh"
+    # 代码由 Nix 只读管理；插件等运行数据和缓存保留在可写的 XDG 目录。
+    typeset -gA ZINIT
+    ZINIT[BIN_DIR]="${config.xdg.dataHome}/zinit/zinit.git"
+    ZINIT[HOME_DIR]="${config.xdg.dataHome}/zinit"
+    export ZSH_CACHE_DIR="${config.xdg.cacheHome}/zinit"
+
+    source "$ZINIT[BIN_DIR]/zinit.zsh"
     autoload -Uz _zinit
     (( ''${+_comps} )) && _comps[zinit]=_zinit
   '';
@@ -57,8 +86,9 @@ let
   '';
 in
 {
+  xdg.dataFile."zinit/zinit.git".source = zinitSource;
+
   home.file = {
-    ".local/share/zinit/zinit.git".source = inputs.zinit;
     ".p10k.zsh".source = ../../dotfiles/p10k.zsh;
     ".config/zsh/local.zsh.example".source = ../../dotfiles/local.zsh.example;
   };
