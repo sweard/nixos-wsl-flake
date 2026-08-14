@@ -1,0 +1,20 @@
+home/modules/shell/zsh.nix
+  s_ebf054d2e2bf2a::t_e21d0815afecbd 22-24
+  s_ebf054d2e2bf2a::t_7530aa9c6fe3f2 25-35,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "afb9fa13c0abcf88a29fe91dc0cf42e85841d1ab",
+  "prompts": {},
+  "sessions": {
+    "s_ebf054d2e2bf2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe07-da42-7250-af8c-9d2f952d31fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
