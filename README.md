@@ -1,6 +1,66 @@
-# NixOS-WSL 开发环境
+# NixOS 多主机开发环境
 
-这套 Flake 面向 Ryzen 9 7950X + RTX 4090 的 Windows 主机，系统目标是 `x86_64-linux` 的 NixOS-WSL 2。它把职责分为三个 seam：NixOS 管系统与 daemon，NixOS-WSL 管 Windows 接入，Home Manager 管开发工具和 dotfiles。
+这套 Flake 面向 `x86_64-linux` 开发工作站，同时支持 NixOS-WSL 2、VMware UEFI 虚拟机，以及 Ryzen 9 7950X + RTX 4090 物理机。它把职责分为三个 seam：NixOS 管系统与 daemon，host adapter 管 WSL/VMware/物理硬件差异，Home Manager 管开发工具和 dotfiles。
+
+## Flake 输出与主机结构
+
+| 输出 | 主机名 | 适用环境 | 主要 adapter |
+|---|---|---|---|
+| `.#wsl` | `nixos-wsl` | Windows 11 / NixOS-WSL 2 | WSL、WSLg、Windows 驱动、FLClash daemon 代理 |
+| `.#vmware` | `nixos-vmware` | x86_64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
+| `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
+
+三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、Plasma 6、PipeWire、NetworkManager 和磁盘标签约定；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+
+### VMware 与物理机共同安装约定
+
+原生主机配置采用一个明确、可复现的磁盘接口：
+
+- 固件模式：UEFI；当前配置未启用 Secure Boot。
+- 根文件系统：ext4，文件系统标签为 `nixos`。
+- EFI System Partition：FAT32，文件系统标签为 `boot`，挂载到 `/boot`。
+- 默认不声明 swap；需要时可按机器内存和休眠需求单独增加。
+
+安装前应已经完成分区、格式化与标签设置。确认设备解析正确后挂载：
+
+```bash
+sudo mount /dev/disk/by-label/nixos /mnt
+sudo mkdir -p /mnt/boot
+sudo mount /dev/disk/by-label/boot /mnt/boot
+```
+
+进入本仓库后，VMware 安装使用：
+
+```bash
+sudo nixos-install --flake .#vmware
+```
+
+物理机安装使用：
+
+```bash
+sudo nixos-install --flake .#physical
+```
+
+安装完成但重启前，为普通用户设置密码：
+
+```bash
+sudo nixos-enter --root /mnt
+passwd nixos
+exit
+```
+
+后续分别重建：
+
+```bash
+sudo nixos-rebuild switch --flake .#vmware
+sudo nixos-rebuild switch --flake .#physical
+```
+
+VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并按需开启 3D 加速。`virtualisation.vmware.guest.enable` 会安装并启动 open-vm-tools。
+
+`physical` adapter 专门针对 Ryzen 9 7950X + RTX 4090：启用 AMD 微码、`kvm-amd`、NVIDIA DRM modesetting 和 NVIDIA open kernel module。若物理机的 CPU、GPU、启动方式或磁盘标签不同，应先调整 `hosts/physical/hardware.nix` 与 `modules/nixos/native-workstation.nix`，不要直接套用。
+
+原生主机没有导入 `proxy.nix`，不会假设 `127.0.0.1:7890` 存在代理；只有 `.#wsl` 保留当前 Windows FLClash 代理设计。
 
 ## 已纳入的环境
 
@@ -592,10 +652,10 @@ usbipd attach --wsl --busid <BUSID>
 - 把 `wsl.docker-desktop.enable` 改为 `true`；
 - 在 Docker Desktop 设置中启用该 NixOS WSL 发行版。
 
-## 9. 7950X 与 RTX 4090 的职责划分
+## 9. WSL 下 7950X 与 RTX 4090 的职责划分
 
-- 7950X 的微码、核心调度和 WSL Linux 内核由 Windows/WSL 管理，NixOS-WSL 不安装裸机 AMD 微码模块。Nix 构建已使用 `max-jobs = auto` 和全部可用核心。
-- RTX 4090 的内核驱动同样安装在 Windows，不要在 NixOS-WSL 中启用 `hardware.nvidia`。`wsl.useWindowsDriver = true` 会接入 Windows 提供的 WSL 图形库，供 WSLg/OpenGL 使用。
+- 本节只描述 `.#wsl`。7950X 的微码、核心调度和 WSL Linux 内核由 Windows/WSL 管理，NixOS-WSL 不安装裸机 AMD 微码模块。Nix 构建已使用 `max-jobs = auto` 和全部可用核心。
+- 在 `.#wsl` 中，RTX 4090 的内核驱动同样安装在 Windows，不要启用 `hardware.nvidia`。`wsl.useWindowsDriver = true` 会接入 Windows 提供的 WSL 图形库，供 WSLg/OpenGL 使用；`.#physical` 则由 NixOS 管理 NVIDIA 驱动。
 - 如果 Windows 驱动暴露了工具，可运行 `/usr/lib/wsl/lib/nvidia-smi` 检查 GPU。CUDA Toolkit 与 NVIDIA Container Toolkit 不在本次所选环境内，需要时应单独增加模块并独立验证。
 
 ## 10. 更新与回滚

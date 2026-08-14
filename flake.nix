@@ -1,5 +1,5 @@
 {
-  description = "NixOS-WSL development workstation for Android, Rust, Node, Python and Flutter";
+  description = "Multi-host NixOS development workstation for WSL, VMware and physical hardware";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -34,31 +34,54 @@
     , ...
     }:
     let
-      # 首次安装沿用 NixOS-WSL 镜像的默认用户，避免 UID 迁移问题。
-      # 若镜像中已经创建了其他用户，只需改这里，并确认该用户已存在。
-      userSettings = {
+      commonUserSettings = {
         username = "nixos";
-        hostName = "nixos-wsl";
         system = "x86_64-linux";
         timeZone = "Asia/Shanghai";
       };
+
+      mkSystem =
+        { hostName
+        , modules
+        }:
+        let
+          userSettings = commonUserSettings // { inherit hostName; };
+        in
+        nixpkgs.lib.nixosSystem {
+          system = userSettings.system;
+          specialArgs = {
+            inherit inputs userSettings;
+          };
+          modules = [
+            home-manager.nixosModules.home-manager
+            {
+              nixpkgs.overlays = [ rust-overlay.overlays.default ];
+            }
+          ] ++ modules;
+        };
     in
     {
-      nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
-        system = userSettings.system;
-        specialArgs = {
-          inherit inputs userSettings;
+      nixosConfigurations = {
+        wsl = mkSystem {
+          hostName = "nixos-wsl";
+          modules = [
+            nixos-wsl.nixosModules.default
+            ./hosts/wsl
+          ];
         };
-        modules = [
-          nixos-wsl.nixosModules.default
-          home-manager.nixosModules.home-manager
-          {
-            nixpkgs.overlays = [ rust-overlay.overlays.default ];
-          }
-          ./hosts/wsl
-        ];
+
+        vmware = mkSystem {
+          hostName = "nixos-vmware";
+          modules = [ ./hosts/vmware ];
+        };
+
+        physical = mkSystem {
+          hostName = "nixos-physical";
+          modules = [ ./hosts/physical ];
+        };
       };
 
-      formatter.${userSettings.system} = nixpkgs.legacyPackages.${userSettings.system}.nixfmt;
+      formatter.${commonUserSettings.system} =
+        nixpkgs.legacyPackages.${commonUserSettings.system}.nixfmt;
     };
 }

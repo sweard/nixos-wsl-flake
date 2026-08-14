@@ -57,7 +57,7 @@
 
   users.users.${userSettings.username} = {
     isNormalUser = true;
-    description = "NixOS WSL Developer";
+    description = "NixOS Developer";
     shell = pkgs.zsh;
     extraGroups = [ "wheel" ];
   };

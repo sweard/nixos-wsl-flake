@@ -2,6 +2,7 @@
 {
   wsl.enable = true;
   wsl.defaultUser = userSettings.username;
+  wsl.docker-desktop.enable = false;
   wsl.startMenuLaunchers = true;
   wsl.wrapBinSh = true;
 
