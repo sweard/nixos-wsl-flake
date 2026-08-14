@@ -1,0 +1,21 @@
+.gitignore
+  s_ebf054d2e2bf2a::t_293551882a8d6d 4
+home/modules/shell/zsh.nix
+  s_ebf054d2e2bf2a::t_d4cd5ea95d5058 4,8-30,39-45,89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "550d6aaa2c7e070b3c21df2678b33279a4ed9a23",
+  "prompts": {},
+  "sessions": {
+    "s_ebf054d2e2bf2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe07-da42-7250-af8c-9d2f952d31fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
