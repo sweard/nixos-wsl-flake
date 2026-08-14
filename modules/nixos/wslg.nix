@@ -12,6 +12,6 @@
     mesa-demos
     vulkan-tools
     wayland-utils
-    xorg.xdpyinfo
+    xdpyinfo
   ];
 }
