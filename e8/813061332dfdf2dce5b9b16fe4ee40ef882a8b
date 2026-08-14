@@ -1,0 +1,22 @@
+hosts/vmware/hardware.nix
+  s_ebf054d2e2bf2a::t_0feb819e6beec7 1,3-5,8,14-19
+  s_ebf054d2e2bf2a::t_7e1919987c8a33 20
+flake.nix
+  s_ebf054d2e2bf2a::t_0feb819e6beec7 43-44,48,51,66,75,81,87-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e8813061332dfdf2dce5b9b16fe4ee40ef882a8b",
+  "prompts": {},
+  "sessions": {
+    "s_ebf054d2e2bf2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe07-da42-7250-af8c-9d2f952d31fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
