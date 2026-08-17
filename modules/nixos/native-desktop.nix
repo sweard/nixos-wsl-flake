@@ -1,24 +1,28 @@
-{ pkgs
-, userSettings
-, ...
+{
+  inputs,
+  pkgs,
+  userSettings,
+  ...
 }:
 {
-  # SDDM 会列出 Plasma 与 Niri；保留 Plasma 作为默认会话。
-  services.displayManager.defaultSession = "plasma";
-  services.displayManager.sddm.enable = true;
-  services.displayManager.sddm.wayland.enable = true;
-  services.displayManager.sddm.wayland.compositor = "kwin";
-  # SDDM 使用独立用户，不会继承 Plasma 用户会话中的 1.5 倍缩放。
-  # 保留 KWin Wayland 所需的 layer-shell 集成，并仅缩放登录界面。
-  services.displayManager.sddm.settings.General.GreeterEnvironment =
-    "QT_WAYLAND_SHELL_INTEGRATION=layer-shell,QT_SCALE_FACTOR=1.5";
+  imports = [
+    inputs.noctalia.nixosModules.default
+  ];
 
-  # 保留完整 Plasma 6 桌面与其 X11 兼容会话。
-  services.desktopManager.plasma6.enable = true;
-  services.xserver.enable = true;
+  services.greetd.enable = true;
+  services.greetd.useTextGreeter = true;
+  services.greetd.settings.default_session.command =
+    "${pkgs.tuigreet}/bin/tuigreet --time --cmd ${pkgs.niri}/bin/niri-session";
 
-  # Nixpkgs 模块注册 niri-session，并配置 portal、GNOME Keyring 与 swaylock PAM。
+  # Nixpkgs 注册 niri-session，并配置 portal 与 GNOME Keyring。
   programs.niri.enable = true;
+
+  # Noctalia 的 NixOS 模块只启用其推荐系统服务；包由 Home Manager 唯一安装。
+  programs.noctalia = {
+    enable = true;
+    package = null;
+    recommendedServices.enable = true;
+  };
 
   networking.networkmanager.enable = true;
   users.users.${userSettings.username}.extraGroups = [ "networkmanager" ];
@@ -35,43 +39,14 @@
   programs.dconf.enable = true;
   hardware.graphics.enable = true;
 
-  # 上游默认 Niri 配置会调用 Waybar、Fuzzel、Alacritty 与 Swaylock。
-  # Mako 仅由下方 Niri 服务引用，避免其 D-Bus 服务在 Plasma 中抢占通知接口。
-  # xwayland-satellite 由 Niri 按需启动，为 X11 应用提供兼容层。
+  # Noctalia 负责 shell 组件；xwayland-satellite 继续为 X11 应用提供兼容层。
   environment.systemPackages = with pkgs; [
     ghostty
-    brightnessctl
-    fuzzel
-    networkmanagerapplet
-    playerctl
-    swaylock
-    waybar
-    wl-clipboard
     xwayland-satellite
   ];
 
-  # 这些服务只绑定 Niri 会话，避免与 Plasma 自己的通知和认证代理重复。
-  systemd.user.services = {
-    niri-mako = {
-      description = "Mako notification daemon for Niri";
-      wantedBy = [ "niri.service" ];
-      partOf = [ "graphical-session.target" ];
-      after = [ "graphical-session.target" ];
-      serviceConfig = {
-        ExecStart = "${pkgs.mako}/bin/mako";
-        Restart = "on-failure";
-      };
-    };
-
-    niri-polkit-agent = {
-      description = "Polkit authentication agent for Niri";
-      wantedBy = [ "niri.service" ];
-      partOf = [ "graphical-session.target" ];
-      after = [ "graphical-session.target" ];
-      serviceConfig = {
-        ExecStart = "${pkgs.kdePackages.polkit-kde-agent-1}/libexec/polkit-kde-authentication-agent-1";
-        Restart = "on-failure";
-      };
-    };
-  };
+  # 仅原生主机把 Noctalia 的 Home Manager 配置附加到既有用户模块。
+  home-manager.users.${userSettings.username}.imports = [
+    ../../home/modules/desktop/noctalia.nix
+  ];
 }

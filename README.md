@@ -10,30 +10,68 @@
 | `.#vmware` | `nixos-vmware` | x86_64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
 | `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
 
-三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Plasma 6、Niri、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
 
-### Plasma 与 Niri 桌面切换
+### Niri + Noctalia 原生桌面
 
-VMware 和物理机同时安装两个桌面会话，登录管理器统一使用 SDDM：
+VMware 与物理机使用一个原生 Wayland 会话，启动链路为：
 
-- `Plasma (Wayland)`：保留的完整 KDE Plasma 6 桌面，也是默认会话。
-- `Niri`：滚动平铺式 Wayland 合成器会话。
+```text
+greetd/tuigreet -> niri-session -> noctalia
+```
 
-Plasma 6 的 NixOS 模块会让 SDDM greeter 本身运行在 KWin Wayland 上。开机进入 SDDM 后，在会话菜单中选择 Plasma 或 Niri 再登录；SDDM 会记住最近选择的会话。已经进入桌面时，先注销即可重新选择，不需要重建系统。
+`greetd` 的文本登录界面启动 `niri-session`；Niri 的 Home Manager 配置在 compositor 启动时唯一拉起 Noctalia。Noctalia v5 当前仍是 beta。官方 Flake 的 NixOS module 只启用其推荐的系统服务；Home Manager module 唯一负责安装 Noctalia 包并生成声明式 TOML 配置，且刻意不启用其 user service，避免第二个实例。
 
-两个会话共用推荐的系统服务：音频使用 PipeWire + WirePlumber，网络使用 NetworkManager。Niri 额外提供 Waybar 状态栏、Fuzzel 启动器、Alacritty 终端、Swaylock 锁屏、Mako 通知、KDE Polkit 认证代理和 `xwayland-satellite` X11 兼容层。
+Noctalia 接管 bar、应用启动器、通知、壁纸、锁屏、idle/OSD、剪贴板、系统托盘、MPRIS 媒体控制和 Polkit 代理。因而已移除 Plasma、SDDM、Xserver、Waybar、Fuzzel、Mako、Swaylock、NetworkManager applet、KDE Polkit 代理、`wl-clipboard`、`playerctl` 和 `brightnessctl`。仍保留 Niri、greetd 登录、portal/GNOME Keyring、PipeWire、NetworkManager、Ghostty 和 `xwayland-satellite`。
 
-Niri 上游默认配置的常用快捷键：
+`~/.config/niri/config.kdl` 由 Home Manager 生成并管理，不能直接修改其 symlink。Home Manager 的 `backupFileExtension = "hm-backup"` 在首次接管时可能会把旧的 `~/.config/niri/config.kdl` 备份为 `config.kdl.hm-backup`。本地自定义应写进 `~/.config/niri/local.kdl`；这是 optional include，文件不存在时可忽略。Noctalia 的 GUI 状态文件 `~/.local/state/noctalia/settings.toml` 可以覆盖声明式生成的配置。
 
-- `Super+T`：打开 Alacritty。
-- `Super+D`：打开 Fuzzel。
-- `Super+Alt+L`：锁定屏幕。
-- `Super+Shift+E`：退出 Niri，返回 SDDM。
-- `Super+Shift+/`：显示完整快捷键提示。
+常用快捷键与当前配置一致：
 
-第一次进入 Niri 时，如果用户配置不存在，Niri 会生成 `~/.config/niri/config.kdl`。该文件可直接修改并实时重载；NixOS 不会覆盖个人定制。若要恢复与当前 Niri 版本一致的上游默认配置，可以先备份并移走该文件，再重新登录 Niri。
+- `Super+T`：打开 Ghostty。
+- `Super+D` 或 `Super+Space`：打开 Noctalia launcher。
+- `Super+S`：打开 Noctalia control center。
+- `Alt+Tab`：打开 Noctalia window switcher。
+- `Super+Alt+L`：通过 Noctalia 锁定屏幕。
+- `Super+Shift+E`：退出 Niri，回到 greetd 登录界面。
+- `Super+Shift+/`：显示 Niri 的完整快捷键 overlay。
+- `Mod+Comma`：保留 Niri 默认的排列语义。
 
-在 VMware 中使用 Niri 必须启用虚拟机的 3D 加速；物理机配置已经为 RTX 4090 启用 NVIDIA DRM modesetting，这是 Niri Wayland 会话所需的基础条件。
+从 Plasma/SDDM 首次迁移时，建议先写入下一代系统并重启，而不是直接切换会话。VMware 使用：
+
+```bash
+sudo nixos-rebuild boot --flake .#vmware
+sudo reboot
+```
+
+物理机使用：
+
+```bash
+sudo nixos-rebuild boot --flake .#physical
+sudo reboot
+```
+
+成功迁移后，后续日常更新可以正常使用 `switch`：
+
+```bash
+sudo nixos-rebuild switch --flake .#vmware
+# 或
+sudo nixos-rebuild switch --flake .#physical
+```
+
+登录后可用以下稳定接口确认状态；旧组件进程的查询没有输出即为预期：
+
+```bash
+systemctl status greetd --no-pager
+pgrep -a niri
+pgrep -a noctalia
+pgrep -a -f 'waybar|fuzzel|mako|swaylock|nm-applet|polkit-kde|wl-clipboard|playerctl|brightnessctl' || true
+niri validate
+noctalia config validate
+noctalia msg --help
+```
+
+若新会话无法登录或验证失败，可在 boot loader 中选择上一代 generation 回退。WSL 与开发环境不导入这套原生桌面模块，不受此次迁移影响。VMware 中仍应启用虚拟机 3D 加速；物理机已为 RTX 4090 启用 NVIDIA DRM modesetting，这是 Niri Wayland 会话所需的基础条件。
 
 ### VMware 与物理机共同安装约定
 
