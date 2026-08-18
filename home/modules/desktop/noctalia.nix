@@ -68,6 +68,9 @@ in
     inputs.noctalia.homeModules.default
   ];
 
+  # Niri 的终端快捷键由本用户配置引用，因此由 Home Manager 安装。
+  home.packages = [ pkgs.ghostty ];
+
   programs.noctalia = {
     enable = true;
     systemd.enable = false;

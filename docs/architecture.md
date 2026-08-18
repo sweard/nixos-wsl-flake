@@ -1,4 +1,4 @@
-# 统一 NixOS / nix-darwin 架构规格
+# NixOS / nix-darwin 统一架构
 
 ## 目标
 
@@ -16,6 +16,9 @@
   - `darwin.nix`：macOS 用户目录与 Darwin 增量。
   - `native-desktop.nix`：在 Linux 入口上增加桌面配置。
 - `home/modules/` 保留可复用的细粒度功能模块。
+  - `cli.nix`：所有用户共享的 CLI、Git 与 direnv 配置。
+  - `development/`：按需启用的语言和 SDK 工具链。
+  - `desktop/`：仅原生 Linux 桌面使用的用户应用与配置。
 
 ## 主机装配
 
@@ -28,5 +31,7 @@
 - Linux 与 Darwin 使用各自的稳定 nixpkgs 分支，相关 input 使用 `follows` 避免同一平台重复锁定。
 - Homebrew 由 `nix-homebrew` 安装/接管，由 nix-darwin `homebrew.*` 声明包；首次落地不自动清理或升级现有包。
 - 代理配置不得进入跨平台 base；macOS 只有确认需要后才新增独立模块。
-- 本次不启用当前注释掉的 Android/Rust/Node/Python/Flutter 重型开发模块。
-- 本次不提交、不推送。
+- 用户应用和 dotfiles 由 Home Manager 管理；daemon、驱动、会话兼容层和系统权限由 NixOS 或 nix-darwin 管理。
+- Android 只能通过 `modules/nixos/android-development.nix` 启用，使 SDK license 与 Home Manager 工具链保持原子化。
+- Rust overlay 由 Rust Home Manager module 局部扩展，不得进入所有 NixOS host 的全局 `pkgs`。
+- 当前默认 profile 不启用 Android、Rust、Node、Python、Flutter 或 C/C++ 重型开发模块。

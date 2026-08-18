@@ -1,6 +1,7 @@
-{ pkgs, ... }:
+{ inputs, pkgs, ... }:
 let
-  rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+  rustPkgs = pkgs.extend inputs.rust-overlay.overlays.default;
+  rustToolchain = rustPkgs.rust-bin.stable.latest.default.override {
     extensions = [
       "rust-src"
       "rustfmt"

@@ -47,7 +47,6 @@
       nix-homebrew,
       nixos-wsl,
       home-manager,
-      rust-overlay,
       ...
     }:
     let
@@ -82,9 +81,6 @@
           };
           modules = [
             home-manager.nixosModules.home-manager
-            {
-              nixpkgs.overlays = [ rust-overlay.overlays.default ];
-            }
           ]
           ++ modules;
         };

@@ -229,8 +229,10 @@ require_fixed "$NATIVE" 'services.greetd.enable = true;' \
   'native desktop uses greetd'
 require_fixed "$NATIVE" 'tuigreet' \
   'greetd uses tuigreet'
-require_fixed "$NATIVE" 'ghostty' \
-  'Ghostty remains the native terminal'
+require_fixed "$NOCTALIA" 'pkgs.ghostty' \
+  'Home Manager installs the terminal referenced by the Niri config'
+forbid_active "$NATIVE" 'ghostty' \
+  'Ghostty is a user application and must not remain a NixOS system package'
 require_fixed "$NATIVE" 'xwayland-satellite' \
   'xwayland-satellite remains the X11 compatibility layer'
 require_noctalia_setting "$NATIVE" package null \

@@ -37,13 +37,18 @@ forbid_text() {
 
 for path in \
   home/common.nix \
+  home/modules/cli.nix \
   home/linux.nix \
   home/darwin.nix \
   home/native-desktop.nix \
   hosts/macbook/default.nix \
+  docs/architecture.md \
+  docs/README.md \
+  scripts/check.sh \
   modules/home-manager.nix \
   modules/darwin/base.nix \
   modules/darwin/homebrew.nix \
+  modules/nixos/android-development.nix \
   modules/nixos/wsl-proxy.nix; do
   require_file "$path"
 done
@@ -62,6 +67,10 @@ require_text flake.nix 'homeProfile = ./home/darwin.nix;' 'macOS selects the Dar
 
 require_text home/linux.nix './common.nix' 'Linux Home profile imports common Home config'
 require_text home/darwin.nix './common.nix' 'Darwin Home profile imports common Home config'
+require_text home/common.nix './modules/cli.nix' \
+  'common Home profile imports the clearly named CLI module'
+[[ ! -e "$REPO_ROOT/home/modules/development/common.nix" ]] || \
+  fail 'ambiguous home/modules/development/common.nix still exists'
 require_text home/native-desktop.nix './linux.nix' \
   'native desktop Home profile extends Linux Home config'
 require_text home/native-desktop.nix './modules/desktop/noctalia.nix' \
@@ -83,6 +92,18 @@ forbid_text modules/nixos/base.nix 'env_keep' 'NixOS base must not contain proxy
 require_text modules/nixos/wsl-proxy.nix 'env_keep' 'WSL proxy owns proxy sudo rules'
 forbid_text modules/nixos/native-desktop.nix 'home-manager.users' \
   'NixOS desktop module must not mutate the Home Manager profile'
+forbid_text flake.nix 'nixpkgs.overlays = [ rust-overlay.overlays.default ];' \
+  'disabled Rust tooling must not install a global NixOS overlay'
+require_text home/modules/development/rust.nix \
+  'pkgs.extend inputs.rust-overlay.overlays.default' \
+  'Rust tooling owns its overlay locally'
+forbid_text modules/nixos/base.nix 'android_sdk.accept_license' \
+  'NixOS base must not enable the optional Android license'
+require_text modules/nixos/android-development.nix 'android_sdk.accept_license = true;' \
+  'Android adapter enables the Android SDK license'
+require_text modules/nixos/android-development.nix \
+  '../../home/modules/development/android.nix' \
+  'Android adapter enables the matching Home Manager tooling'
 proxy_import_count=$(rg -F -l -- '../../modules/nixos/wsl-proxy.nix' "$REPO_ROOT/hosts" | wc -l | tr -d ' ')
 [[ "$proxy_import_count" == 1 ]] || \
   fail "WSL proxy must have exactly one host import (found $proxy_import_count)"
@@ -90,6 +111,10 @@ proxy_import_count=$(rg -F -l -- '../../modules/nixos/wsl-proxy.nix' "$REPO_ROOT
   fail 'Home Manager wiring is still duplicated under modules/nixos'
 [[ ! -e "$REPO_ROOT/modules/darwin/home-manager.nix" ]] || \
   fail 'Home Manager wiring is still duplicated under modules/darwin'
+[[ ! -e "$REPO_ROOT/docs/superpowers" ]] || \
+  fail 'historical implementation plans still occupy the current docs seam'
+[[ -x "$REPO_ROOT/scripts/check.sh" ]] || \
+  fail 'the unified verification entry point is not executable'
 
 if (( failures > 0 )); then
   printf 'SUMMARY: %d architecture check(s) failed\n' "$failures" >&2

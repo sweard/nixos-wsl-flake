@@ -39,10 +39,7 @@
   programs.dconf.enable = true;
   hardware.graphics.enable = true;
 
-  # Noctalia 负责 shell 组件；xwayland-satellite 继续为 X11 应用提供兼容层。
-  environment.systemPackages = with pkgs; [
-    ghostty
-    xwayland-satellite
-  ];
+  # xwayland-satellite 是桌面会话的系统兼容层；用户应用由 Home Manager 安装。
+  environment.systemPackages = [ pkgs.xwayland-satellite ];
 
 }

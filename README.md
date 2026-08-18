@@ -2,6 +2,10 @@
 
 这套 Flake 在同一个 `master` 分支中管理四个输出：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 VMware UEFI 虚拟机、`x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机，以及 `aarch64-darwin` 的 MacBook。NixOS 与 nix-darwin 管系统层，`hosts/` 只装配具体主机，Home Manager 管所有平台的用户工具和 dotfiles。
 
+当前架构约束见 [`docs/architecture.md`](docs/architecture.md)，历史迁移方案统一归档在 `docs/archive/`，不作为当前配置依据。
+
+安装 Nix 后可运行 `scripts/check.sh`，统一执行结构回归、lock 完整性检查和四个 host 的真实求值。
+
 ## Flake 输出与主机结构
 
 | 输出 | 主机名 | 适用环境 | 主要 adapter |
@@ -27,6 +31,7 @@
 │   ├── home-manager.nix       # NixOS 与 nix-darwin 共用的 HM 装配
 │   ├── nixos/              # 只在 NixOS 求值的系统模块
 │   │   ├── base.nix
+│   │   ├── android-development.nix
 │   │   ├── docker.nix
 │   │   ├── wsl.nix
 │   │   ├── wslg.nix
@@ -42,6 +47,7 @@
     ├── darwin.nix
     ├── native-desktop.nix
     └── modules/
+        ├── cli.nix
         ├── development/
         ├── desktop/
         └── shell/
@@ -55,7 +61,7 @@ VMware / physical    -> home/native-desktop.nix -> home/linux.nix -> home/common
 MacBook              -> home/darwin.nix          -> home/common.nix
 ```
 
-Android、Rust、Node、Python、Flutter 和 C/C++ 模块保留在仓库中，但 `home/common.nix` 当前没有导入它们。
+Android、Rust、Node、Python、Flutter 和 C/C++ 模块保留在仓库中，但当前没有任何 host 启用它们。Android 通过 NixOS adapter 原子化启用，其余候选工具链仍保留为注释 import。
 
 ### Niri + Noctalia 原生桌面
 
@@ -179,11 +185,11 @@ VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并�
 | 原生桌面 | VMware 与物理机启用 Niri、Noctalia、greetd/tuigreet、Ghostty、xwayland-satellite、PipeWire、NetworkManager |
 | macOS | nix-darwin、nix-homebrew，以及由 Home Manager 管理的通用用户工具和 zsh |
 
-Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到四个输出。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
+Git 身份当前由 `home/modules/cli.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到四个输出。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
 
 ## 仓库保留但默认未启用的开发模块
 
-以下文件仍在仓库中，但它们在 `home/common.nix` 中的 import 当前均被注释，因此不会进入任何 host 的 Home Manager profile，也不会因为默认重建而下载对应工具链：
+以下文件仍在仓库中，但当前没有进入任何 host 的 Home Manager profile，也不会因为默认重建而下载对应工具链。Rust、Node、Python、Flutter 和 C/C++ 在 `home/common.nix` 中保留为注释 import；Android 改由 `modules/nixos/android-development.nix` 统一装配系统许可和用户工具：
 
 | 模块 | 文件中声明的能力 | 当前状态 |
 |---|---|---|
@@ -194,7 +200,7 @@ Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <swe
 | Python | Python 3、virtualenv、pipx | 未导入 |
 | Flutter | Nixpkgs 26.05 中的 Flutter | 未导入 |
 
-这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若在 `home/common.nix` 直接启用，会同时影响 Linux 与 macOS；若只针对某类环境，应改在 `home/linux.nix`、`home/darwin.nix` 或 `home/native-desktop.nix` 导入。启用前还需确认 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin` 的包兼容性。
+这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若在 `home/common.nix` 直接启用非 Android 模块，会同时影响 Linux 与 macOS；若只针对某类环境，应改在 `home/linux.nix`、`home/darwin.nix` 或 `home/native-desktop.nix` 导入。启用前还需确认 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin` 的包兼容性。Rust module 自己局部加载 overlay，不再改变所有 NixOS host 的全局 `pkgs`。
 
 当前默认配置没有直接安装 `pkg-config`、Node、Python、Rust、JDK、Android SDK 或 Flutter。项目需要这些工具时，优先考虑项目自己的 `devShell`；若确实希望全局提供，再启用对应 Home Manager 模块。
 
@@ -783,9 +789,9 @@ sudo nixos-rebuild switch --flake .#wsl
 
 Android Home Manager 模块当前默认未导入，因此默认 profile 中没有 `android-studio`、`adb`、JDK、Gradle、Kotlin、Android SDK/NDK，也不会设置 `ANDROID_SDK_ROOT`、`ANDROID_HOME`、`JAVA_HOME` 或 NDK 路径。
 
-如果确认要把 Android 工具链加入所有平台，可在 `home/common.nix` 中启用 `./modules/development/android.nix` 后重建；通常更合理的是只在 `home/linux.nix` 中导入。启用后，SDK 位于 Nix store 的只读组合结果；SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
+如果确认要给某个 NixOS host 加入 Android 工具链，应在对应 `hosts/*/default.nix` 中导入 `modules/nixos/android-development.nix`。这个 adapter 会同时接受 Android SDK license，并给当前用户加载 `home/modules/development/android.nix`；不要再从 `home/common.nix` 直接导入 Android。启用后，SDK 位于 Nix store 的只读组合结果；SDK 版本应通过修改 Home Manager module 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
 
-注意，`home/linux.nix` 当前由 WSL、VMware 与物理机共用，而 VMware 是 `aarch64-linux`。直接在这里启用 Android module 会同时作用于三者；应先验证 Android Studio 和 Android SDK 中预编译工具的 ARM Linux 兼容性。只需要 WSL 时，应再增加更具体的 Home Manager profile，而不是把 host 判断散落到开发模块中。
+例如只给 WSL 启用时，应在 `hosts/wsl/default.nix` 的 imports 中添加 `../../modules/nixos/android-development.nix`。VMware 是 `aarch64-linux`，不要在未验证 Android Studio 和 SDK 预编译工具兼容性前把该 adapter 加入 `native-workstation.nix`。
 
 Android module 自身把 Emulator 和 system image 保持为关闭状态。启用该 module 后，在 WSL 中仍推荐：
 

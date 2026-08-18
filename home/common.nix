@@ -1,9 +1,8 @@
 { userSettings, ... }:
 {
   imports = [
-    ./modules/development/common.nix
+    ./modules/cli.nix
     # ./modules/development/cpp.nix
-    # ./modules/development/android.nix
     # ./modules/development/rust.nix
     # ./modules/development/node.nix
     # ./modules/development/python.nix
