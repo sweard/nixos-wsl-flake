@@ -3,7 +3,7 @@
   imports = [
     ./base.nix
     ./docker.nix
-    ./home-manager.nix
+    ../home-manager.nix
     ./native-desktop.nix
   ];
 

@@ -14,6 +14,11 @@ let
   };
 in
 {
+  security.sudo.extraConfig = ''
+    Defaults env_keep += "HTTP_PROXY HTTPS_PROXY NO_PROXY"
+    Defaults env_keep += "http_proxy https_proxy no_proxy"
+  '';
+
   systemd.services.nix-daemon.environment = proxyEnvironment;
   systemd.services.docker.environment = proxyEnvironment;
 }

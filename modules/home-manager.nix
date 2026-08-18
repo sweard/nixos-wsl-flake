@@ -1,6 +1,8 @@
-{ inputs
-, userSettings
-, ...
+{
+  inputs,
+  homeProfile,
+  userSettings,
+  ...
 }:
 {
   home-manager = {
@@ -10,6 +12,6 @@
     extraSpecialArgs = {
       inherit inputs userSettings;
     };
-    users.${userSettings.username} = import ../../home;
+    users.${userSettings.username} = import homeProfile;
   };
 }

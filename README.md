@@ -1,6 +1,6 @@
-# NixOS 多主机开发环境
+# NixOS + nix-darwin 多主机开发环境
 
-这套 Flake 同时管理三台明确的 NixOS 主机：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 VMware UEFI 虚拟机，以及 `x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机。它把职责分为三个 seam：NixOS 管系统与 daemon，host adapter 管 WSL/VMware/物理硬件差异，Home Manager 管当前启用的用户工具和 dotfiles。
+这套 Flake 在同一个 `master` 分支中管理四个输出：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 VMware UEFI 虚拟机、`x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机，以及 `aarch64-darwin` 的 MacBook。NixOS 与 nix-darwin 管系统层，`hosts/` 只装配具体主机，Home Manager 管所有平台的用户工具和 dotfiles。
 
 ## Flake 输出与主机结构
 
@@ -9,8 +9,53 @@
 | `.#wsl` | `nixos-wsl` | Windows 11 / NixOS-WSL 2 | WSL、WSLg、Windows 驱动、FLClash daemon 代理 |
 | `.#vmware` | `nixos-vmware` | aarch64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
 | `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
+| `.#Jeffs-MacBook-Pro` | `Jeffs-MacBook-Pro` | Apple Silicon macOS | nix-darwin、现有 Homebrew 接管、Darwin Home Manager profile |
 
-三个输出共用 `base.nix`、Docker、Home Manager、通用命令行工具和 zsh 配置。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。Android、Rust、Node、Python、Flutter 和 C/C++ 模块保留在仓库中，但当前默认 profile 没有导入它们。
+四个输出共用 `home/common.nix` 中的通用命令行工具和 zsh 配置。三个 NixOS 输出共用 NixOS base、Docker 与 Home Manager 装配；VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager。硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+
+当前目录边界如下：
+
+```text
+.
+├── flake.nix
+├── hosts/
+│   ├── wsl/
+│   ├── vmware/
+│   ├── physical/
+│   └── macbook/
+├── modules/
+│   ├── home-manager.nix       # NixOS 与 nix-darwin 共用的 HM 装配
+│   ├── nixos/              # 只在 NixOS 求值的系统模块
+│   │   ├── base.nix
+│   │   ├── docker.nix
+│   │   ├── wsl.nix
+│   │   ├── wslg.nix
+│   │   ├── wsl-proxy.nix
+│   │   ├── native-workstation.nix
+│   │   └── native-desktop.nix
+│   └── darwin/             # 只在 nix-darwin 求值的系统模块
+│       ├── base.nix
+│       └── homebrew.nix
+└── home/                   # 所有平台共用的 Home Manager 层
+    ├── common.nix
+    ├── linux.nix
+    ├── darwin.nix
+    ├── native-desktop.nix
+    └── modules/
+        ├── development/
+        ├── desktop/
+        └── shell/
+```
+
+`home/` 不是 Darwin 的替代分支，而是四个输出都会加载的用户层。实际组合关系是：
+
+```text
+WSL                  -> home/linux.nix           -> home/common.nix
+VMware / physical    -> home/native-desktop.nix -> home/linux.nix -> home/common.nix
+MacBook              -> home/darwin.nix          -> home/common.nix
+```
+
+Android、Rust、Node、Python、Flutter 和 C/C++ 模块保留在仓库中，但 `home/common.nix` 当前没有导入它们。
 
 ### Niri + Noctalia 原生桌面
 
@@ -121,23 +166,24 @@ VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并�
 
 `physical` adapter 专门针对 Ryzen 9 7950X + RTX 4090：启用 AMD 微码、`kvm-amd`、NVIDIA DRM modesetting 和 NVIDIA open kernel module。若物理机的 CPU、GPU、启动方式或磁盘标签不同，应先调整 `hosts/physical/hardware.nix` 与 `modules/nixos/native-workstation.nix`，不要直接套用。
 
-原生主机没有导入 `proxy.nix`，不会假设 `127.0.0.1:7890` 存在代理；只有 `.#wsl` 保留当前 Windows FLClash 代理设计。
+原生主机和 MacBook 都没有导入代理模块，不会假设 `127.0.0.1:7890` 存在代理；只有 `.#wsl` 导入 `wsl-proxy.nix`，保留当前 Windows FLClash 代理设计。若 macOS 日后确实需要固定代理，应新增独立的 Darwin 模块，不要复用 WSL 的 systemd 配置。
 
 ## 当前实际启用的环境
 
 | 类别 | 配置内容 |
 |---|---|
 | 通用用户工具 | Git、Git LFS、curl、wget、jq、ripgrep、fd、zip/unzip、tree、file、rsync、OpenSSH、GnuPG、GNU 基础工具、tealdeer、nixfmt、nil、fastfetch、Neovim、bat、eza、fzf、direnv、nix-direnv |
-| 容器 | NixOS 内原生 Docker daemon 与 Compose |
+| 容器 | 三个 NixOS 输出启用原生 Docker daemon 与 Compose；MacBook 当前未声明容器后端 |
 | Shell | zsh、由 Flake 锁定的 zinit、Powerlevel10k、现有 p10k 配置和由 zinit 管理的插件 |
 | WSL / WSLg | usbutils、pciutils、Mesa/OpenGL、Vulkan、Wayland 和 X11 诊断工具、MesloLGS Nerd Font |
-| 原生桌面 | Niri、Noctalia、greetd/tuigreet、Ghostty、xwayland-satellite、PipeWire、NetworkManager |
+| 原生桌面 | VMware 与物理机启用 Niri、Noctalia、greetd/tuigreet、Ghostty、xwayland-satellite、PipeWire、NetworkManager |
+| macOS | nix-darwin、nix-homebrew，以及由 Home Manager 管理的通用用户工具和 zsh |
 
-Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到三个 host 的 `nixos` 用户。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
+Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到四个输出。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
 
 ## 仓库保留但默认未启用的开发模块
 
-以下文件仍在仓库中，但它们在 `home/default.nix` 中的 import 当前均被注释，因此不会进入任何 host 的 Home Manager profile，也不会因为默认重建而下载对应工具链：
+以下文件仍在仓库中，但它们在 `home/common.nix` 中的 import 当前均被注释，因此不会进入任何 host 的 Home Manager profile，也不会因为默认重建而下载对应工具链：
 
 | 模块 | 文件中声明的能力 | 当前状态 |
 |---|---|---|
@@ -148,7 +194,7 @@ Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <swe
 | Python | Python 3、virtualenv、pipx | 未导入 |
 | Flutter | Nixpkgs 26.05 中的 Flutter | 未导入 |
 
-这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若要启用，应先确认目标 host 和平台兼容性，再取消相应 import 的注释并重建。尤其要注意：`home/default.nix` 由三个 host 共用，直接取消注释会同时影响 `x86_64-linux` 的 WSL/物理机和 `aarch64-linux` 的 VMware。
+这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若在 `home/common.nix` 直接启用，会同时影响 Linux 与 macOS；若只针对某类环境，应改在 `home/linux.nix`、`home/darwin.nix` 或 `home/native-desktop.nix` 导入。启用前还需确认 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin` 的包兼容性。
 
 当前默认配置没有直接安装 `pkg-config`、Node、Python、Rust、JDK、Android SDK 或 Flutter。项目需要这些工具时，优先考虑项目自己的 `devShell`；若确实希望全局提供，再启用对应 Home Manager 模块。
 
@@ -162,6 +208,44 @@ zsh 已迁移以下实际启用项：
 - romkatv/powerlevel10k 与当前 `~/.p10k.zsh` 的逐字副本。
 
 zinit 本体由 `flake.lock` 锁定，但 zinit 下载的插件和 snippets 继续使用其原生生命周期，并不由 `flake.lock` 固定。当前默认 profile 也没有启用 Node、Python 或 Android 模块，因此不能把 nvm、pyenv 或手写 Android PATH 视为已经由 Nix 工具链替代。
+
+## macOS / nix-darwin 首次接入
+
+MacBook 输出使用用户 `sbwoan`、主机名 `Jeffs-MacBook-Pro` 和 `aarch64-darwin`。本机已有的 `/opt/homebrew` 由 `nix-homebrew` 迁移接管；当前不额外安装 `/usr/local` 下的 Intel Homebrew。`autoMigrate = true` 会在首次 activation 删除原 Homebrew 代码仓库、保留已安装包，再换成 Nix 管理的 Homebrew 实现；`cleanup = "none"` 只表示不删除未声明 formula/cask，并不等于迁移本身无状态变更。
+
+首次迁移前先确认标准路径、检查 Homebrew 仓库是否有本地修改，并导出当前清单：
+
+```bash
+brew --prefix
+git -C "$(brew --repository)" status --short
+brew bundle dump --file="$HOME/Brewfile.before-nix-homebrew" --force
+brew tap > "$HOME/brew-taps.before-nix-homebrew.txt"
+```
+
+如果 Homebrew 仓库存在需要保留的本地修改，应先单独备份或提交，不要直接 activation。
+
+macOS 需要先安装官方多用户 Nix；当前配置保留 nix-darwin 默认的 `nix.enable = true`，不兼容 Determinate Nix。若使用 Determinate Nix，需要先设计 `nix.enable = false` 的独立变体，不能直接套用本配置。进入仓库后，为新增 inputs 生成锁定信息并检查输出：
+
+```bash
+nix --extra-experimental-features 'nix-command flakes' flake lock
+nix --extra-experimental-features 'nix-command flakes' flake show
+```
+
+首次安装 nix-darwin：
+
+```bash
+sudo nix --extra-experimental-features 'nix-command flakes' \
+  run nix-darwin/nix-darwin-26.05#darwin-rebuild -- \
+  switch --flake .#Jeffs-MacBook-Pro
+```
+
+之后日常应用：
+
+```bash
+sudo darwin-rebuild switch --flake .#Jeffs-MacBook-Pro
+```
+
+当前 Darwin 配置只接入系统基础、Homebrew 管理入口和通用 Home Manager profile，不启用 Niri/Noctalia、Docker、WSLg 或 WSL 代理。
 
 ## 1. Windows 侧准备
 
@@ -319,7 +403,7 @@ http://127.0.0.1:7890
 
 这里是全新安装最重要的 bootstrap 步骤。
 
-WSL `autoProxy=true` 能给用户 shell 设置代理，但 systemd 管理的 `nix-daemon` 不会自动继承用户环境。第一次 `nixos-rebuild` 之前，永久的 `modules/nixos/proxy.nix` 还没有生效，因此先创建仅当前启动有效的 runtime override：
+WSL `autoProxy=true` 能给用户 shell 设置代理，但 systemd 管理的 `nix-daemon` 不会自动继承用户环境。第一次 `nixos-rebuild` 之前，永久的 `modules/nixos/wsl-proxy.nix` 还没有生效，因此先创建仅当前启动有效的 runtime override：
 
 ```bash
 sudo mkdir -p /run/systemd/system/nix-daemon.service.d
@@ -344,7 +428,7 @@ systemctl show nix-daemon.service -p Environment
 
 应看到 `HTTP_PROXY` / `HTTPS_PROXY`。
 
-`/run` 是临时运行时目录；WSL/NixOS 重启后这个 override 会消失。第一次系统切换成功后，`modules/nixos/proxy.nix` 会永久接管 `nix-daemon` 和 Docker daemon 的代理。
+`/run` 是临时运行时目录；WSL/NixOS 重启后这个 override 会消失。第一次系统切换成功后，`modules/nixos/wsl-proxy.nix` 会永久接管 `nix-daemon`、Docker daemon 与 sudo 代理变量保留规则。
 
 ### 2.5 首次检查 Flake
 
@@ -473,7 +557,7 @@ env | grep -i proxy
 sudo env | grep -i proxy
 ```
 
-`modules/nixos/base.nix` 已声明：
+`modules/nixos/wsl-proxy.nix` 已声明：
 
 ```nix
 security.sudo.extraConfig = ''
@@ -611,14 +695,14 @@ Windows FLClash / WSL autoProxy
     +-- 普通用户 shell
     |
     +-- sudo
-    |     `-- base.nix 的 env_keep
+    |     `-- wsl-proxy.nix 的 env_keep
     |
     +-- systemd daemons
-          +-- nix-daemon -> proxy.nix
-          `-- docker     -> proxy.nix
+          +-- nix-daemon -> wsl-proxy.nix
+          `-- docker     -> wsl-proxy.nix
 ```
 
-`modules/nixos/proxy.nix` 当前固定使用：
+`modules/nixos/wsl-proxy.nix` 当前固定使用：
 
 ```text
 http://127.0.0.1:7890
@@ -699,9 +783,9 @@ sudo nixos-rebuild switch --flake .#wsl
 
 Android Home Manager 模块当前默认未导入，因此默认 profile 中没有 `android-studio`、`adb`、JDK、Gradle、Kotlin、Android SDK/NDK，也不会设置 `ANDROID_SDK_ROOT`、`ANDROID_HOME`、`JAVA_HOME` 或 NDK 路径。
 
-如果确认要把 Android 工具链全局加入 Home Manager，可在 `home/default.nix` 中启用 `./modules/development/android.nix` 后重建。启用后，SDK 位于 Nix store 的只读组合结果；SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
+如果确认要把 Android 工具链加入所有平台，可在 `home/common.nix` 中启用 `./modules/development/android.nix` 后重建；通常更合理的是只在 `home/linux.nix` 中导入。启用后，SDK 位于 Nix store 的只读组合结果；SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
 
-注意，`home/default.nix` 当前由三个 host 共用，而 VMware 是 `aarch64-linux`。在没有增加 host/platform 条件前，直接启用 Android module 会同时作用于 VMware；应先验证 Android Studio 和 Android SDK 中预编译工具的 ARM Linux 兼容性。
+注意，`home/linux.nix` 当前由 WSL、VMware 与物理机共用，而 VMware 是 `aarch64-linux`。直接在这里启用 Android module 会同时作用于三者；应先验证 Android Studio 和 Android SDK 中预编译工具的 ARM Linux 兼容性。只需要 WSL 时，应再增加更具体的 Home Manager profile，而不是把 host 判断散落到开发模块中。
 
 Android module 自身把 Emulator 和 system image 保持为关闭状态。启用该 module 后，在 WSL 中仍推荐：
 
@@ -745,7 +829,14 @@ nix flake update
 sudo nixos-rebuild switch --flake .#wsl
 ```
 
-列出系统代次并回滚：
+MacBook 更新并重建：
+
+```bash
+nix flake update
+sudo darwin-rebuild switch --flake .#Jeffs-MacBook-Pro
+```
+
+以下代次、回滚与每周 GC 说明只适用于三个 NixOS 输出：
 
 ```bash
 sudo nixos-rebuild list-generations
@@ -754,4 +845,4 @@ sudo nixos-rebuild switch --rollback
 
 `system.stateVersion` 与 `home.stateVersion` 不应随着普通升级随意修改，它们表示首次采用该配置时的兼容基线。
 
-系统会每周回收 14 天前已不再使用的 Nix store 路径；需要长期保留某个旧系统代次时，请在清理前为它保留可达引用，或关闭 `modules/nixos/base.nix` 中的自动 GC。
+NixOS 会每周回收 14 天前已不再使用的 Nix store 路径；需要长期保留某个旧系统代次时，请在清理前为它保留可达引用，或关闭 `modules/nixos/base.nix` 中的自动 GC。Darwin 当前没有声明自动 GC；可用 `darwin-rebuild --list-generations` 查看代次，回滚前应先根据该命令输出选择目标 generation。

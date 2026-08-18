@@ -1,8 +1,16 @@
 {
-  description = "Multi-host NixOS development workstation for WSL, VMware and physical hardware";
+  description = "Multi-host NixOS and nix-darwin development environments";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-darwin.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+
+    nix-darwin = {
+      url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
+      inputs.nixpkgs.follows = "nixpkgs-darwin";
+    };
+
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
 
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL/main";
@@ -34,32 +42,43 @@
   outputs =
     inputs@{
       nixpkgs,
+      nixpkgs-darwin,
+      nix-darwin,
+      nix-homebrew,
       nixos-wsl,
       home-manager,
       rust-overlay,
       ...
     }:
     let
-      commonUserSettings = {
+      nixosUserSettings = {
         username = "nixos";
         timeZone = "Asia/Shanghai";
       };
 
-      mkSystem =
+      darwinUserSettings = {
+        username = "sbwoan";
+        hostName = "Jeffs-MacBook-Pro";
+        system = "aarch64-darwin";
+        timeZone = "Asia/Shanghai";
+      };
+
+      mkNixosSystem =
         {
           system,
           hostName,
+          homeProfile,
           modules,
         }:
         let
-          userSettings = commonUserSettings // {
+          userSettings = nixosUserSettings // {
             inherit hostName system;
           };
         in
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
-            inherit inputs userSettings;
+            inherit inputs userSettings homeProfile;
           };
           modules = [
             home-manager.nixosModules.home-manager
@@ -72,31 +91,48 @@
     in
     {
       nixosConfigurations = {
-        wsl = mkSystem {
+        wsl = mkNixosSystem {
           system = "x86_64-linux";
           hostName = "nixos-wsl";
+          homeProfile = ./home/linux.nix;
           modules = [
             nixos-wsl.nixosModules.default
             ./hosts/wsl
           ];
         };
 
-        vmware = mkSystem {
+        vmware = mkNixosSystem {
           system = "aarch64-linux";
           hostName = "nixos-vmware";
+          homeProfile = ./home/native-desktop.nix;
           modules = [ ./hosts/vmware ];
         };
 
-        physical = mkSystem {
+        physical = mkNixosSystem {
           system = "x86_64-linux";
           hostName = "nixos-physical";
+          homeProfile = ./home/native-desktop.nix;
           modules = [ ./hosts/physical ];
         };
+      };
+
+      darwinConfigurations."Jeffs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
+        specialArgs = {
+          inherit inputs;
+          userSettings = darwinUserSettings;
+          homeProfile = ./home/darwin.nix;
+        };
+        modules = [
+          home-manager.darwinModules.home-manager
+          nix-homebrew.darwinModules.nix-homebrew
+          ./hosts/macbook
+        ];
       };
 
       formatter = {
         x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
         aarch64-linux = nixpkgs.legacyPackages.aarch64-linux.nixfmt;
+        aarch64-darwin = nixpkgs-darwin.legacyPackages.aarch64-darwin.nixfmt;
       };
     };
 }

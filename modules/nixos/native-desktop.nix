@@ -45,8 +45,4 @@
     xwayland-satellite
   ];
 
-  # 仅原生主机把 Noctalia 的 Home Manager 配置附加到既有用户模块。
-  home-manager.users.${userSettings.username}.imports = [
-    ../../home/modules/desktop/noctalia.nix
-  ];
 }

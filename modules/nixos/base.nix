@@ -64,10 +64,5 @@
 
   security.sudo.wheelNeedsPassword = true;
 
-  security.sudo.extraConfig = ''
-    Defaults env_keep += "HTTP_PROXY HTTPS_PROXY NO_PROXY"
-    Defaults env_keep += "http_proxy https_proxy no_proxy"
-  '';
-
   system.stateVersion = "26.05";
 }
