@@ -1,0 +1,15 @@
+home/modules/desktop/noctalia.nix
+  h_74ac6e576b13a5 72,74
+  h_74ac6e576b13a5 73,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "aebbee29cd53c18e2f2063207e8da51c67c430e2",
+  "prompts": {},
+  "humans": {
+    "h_74ac6e576b13a5": {
+      "author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
