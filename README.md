@@ -1,16 +1,16 @@
 # NixOS 多主机开发环境
 
-这套 Flake 面向 `x86_64-linux` 开发工作站，同时支持 NixOS-WSL 2、VMware UEFI 虚拟机，以及 Ryzen 9 7950X + RTX 4090 物理机。它把职责分为三个 seam：NixOS 管系统与 daemon，host adapter 管 WSL/VMware/物理硬件差异，Home Manager 管开发工具和 dotfiles。
+这套 Flake 同时管理三台明确的 NixOS 主机：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 VMware UEFI 虚拟机，以及 `x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机。它把职责分为三个 seam：NixOS 管系统与 daemon，host adapter 管 WSL/VMware/物理硬件差异，Home Manager 管当前启用的用户工具和 dotfiles。
 
 ## Flake 输出与主机结构
 
 | 输出 | 主机名 | 适用环境 | 主要 adapter |
 |---|---|---|---|
 | `.#wsl` | `nixos-wsl` | Windows 11 / NixOS-WSL 2 | WSL、WSLg、Windows 驱动、FLClash daemon 代理 |
-| `.#vmware` | `nixos-vmware` | x86_64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
+| `.#vmware` | `nixos-vmware` | aarch64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
 | `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
 
-三个输出共用 `base.nix`、Docker、Home Manager 和开发环境。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+三个输出共用 `base.nix`、Docker、Home Manager、通用命令行工具和 zsh 配置。VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager；硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。Android、Rust、Node、Python、Flutter 和 C/C++ 模块保留在仓库中，但当前默认 profile 没有导入它们。
 
 ### Niri + Noctalia 原生桌面
 
@@ -123,36 +123,45 @@ VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并�
 
 原生主机没有导入 `proxy.nix`，不会假设 `127.0.0.1:7890` 存在代理；只有 `.#wsl` 保留当前 Windows FLClash 代理设计。
 
-## 已纳入的环境
+## 当前实际启用的环境
 
 | 类别 | 配置内容 |
 |---|---|
-| Android/JVM | Android Studio、API 34–36、Build Tools 34/35/36、platform-tools/ADB、NDK 26/28、CMake 3.22.1、JDK 21、Gradle、Kotlin |
-| Rust | stable、cargo、rustfmt、clippy、rust-analyzer、rust-src、4 个 Android targets、sccache |
-| Node | Node.js 24、pnpm |
-| C/C++ | GCC、Clang/LLVM、LLDB、GDB、Make、CMake、Ninja、ccache、Autotools |
-| Python | Python 3、virtualenv、pipx |
-| Flutter | Nixpkgs 26.05 中的 Flutter，使用同一套 Android SDK/JDK |
-| 通用 | Git、Git LFS、curl、wget、jq、ripgrep、fd、zip/unzip、rsync、SSH、GnuPG、direnv |
+| 通用用户工具 | Git、Git LFS、curl、wget、jq、ripgrep、fd、zip/unzip、tree、file、rsync、OpenSSH、GnuPG、GNU 基础工具、tealdeer、nixfmt、nil、fastfetch、Neovim、bat、eza、fzf、direnv、nix-direnv |
 | 容器 | NixOS 内原生 Docker daemon 与 Compose |
-| Shell | zsh、zinit、Powerlevel10k、现有 p10k 配置和现有插件 |
+| Shell | zsh、由 Flake 锁定的 zinit、Powerlevel10k、现有 p10k 配置和由 zinit 管理的插件 |
+| WSL / WSLg | usbutils、pciutils、Mesa/OpenGL、Vulkan、Wayland 和 X11 诊断工具、MesloLGS Nerd Font |
+| 原生桌面 | Niri、Noctalia、greetd/tuigreet、Ghostty、xwayland-satellite、PipeWire、NetworkManager |
 
-没有直接安装 `pkg-config`。因此 Android/Flutter Android 开发不受影响，但 Flutter Linux 桌面工程可能在 `flutter doctor` 中提示缺少它；需要时只在项目自己的 `devShell` 中加入即可。
+Git 身份当前由 `home/modules/development/common.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到三个 host 的 `nixos` 用户。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
 
-## 从当前环境迁移的依据
+## 仓库保留但默认未启用的开发模块
 
-扫描到的当前环境包括：zsh 5.9；Node 24.15/22.15 与 pnpm 11.19；JDK 21；Android API 29、32–36，Build Tools 29–36，NDK 25–28 和 CMake 3.22.1；Rust stable 1.94 及 Android targets；Flutter 3.41.4 stable；Docker 29.7；Git 2.55；CMake 4.4；Python 3.9。
+以下文件仍在仓库中，但它们在 `home/default.nix` 中的 import 当前均被注释，因此不会进入任何 host 的 Home Manager profile，也不会因为默认重建而下载对应工具链：
 
-这套配置保留组件能力，但不是把每个历史版本都复制一遍：Android 选择仍常用的 API 34–36、Build Tools 34–36、NDK 26/28；Node 固定主版本 24；Python 采用 26.05 官方仍支持的 `python3`（`python3Full` 已被上游移除），Flutter 跟随锁定后的 Nixpkgs 26.05。最终精确版本由 `flake.lock` 固定。
+| 模块 | 文件中声明的能力 | 当前状态 |
+|---|---|---|
+| C/C++ | GCC、Clang/LLVM、LLDB、GDB、Make、CMake、Ninja、ccache、Autotools | 未导入 |
+| Android/JVM | Android Studio、API 34–36、Build Tools 34/35/36、NDK 26/28、CMake 3.22.1、JDK 21、Gradle、Kotlin | 未导入 |
+| Rust | stable、cargo、rustfmt、clippy、rust-analyzer、rust-src、4 个 Android targets、sccache | 未导入 |
+| Node | Node.js 24、pnpm | 未导入 |
+| Python | Python 3、virtualenv、pipx | 未导入 |
+| Flutter | Nixpkgs 26.05 中的 Flutter | 未导入 |
+
+这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若要启用，应先确认目标 host 和平台兼容性，再取消相应 import 的注释并重建。尤其要注意：`home/default.nix` 由三个 host 共用，直接取消注释会同时影响 `x86_64-linux` 的 WSL/物理机和 `aarch64-linux` 的 VMware。
+
+当前默认配置没有直接安装 `pkg-config`、Node、Python、Rust、JDK、Android SDK 或 Flutter。项目需要这些工具时，优先考虑项目自己的 `devShell`；若确实希望全局提供，再启用对应 Home Manager 模块。
+
+## zsh 配置
 
 zsh 已迁移以下实际启用项：
 
 - zinit annex：as-monitor、bin-gem-node、patch-dl、rust。
 - zsh-history-substring-search、zsh-autosuggestions、zsh-completions、zsh-syntax-highlighting。
-- Oh My Zsh 的 z、git；brew 仅在 WSL 中确实存在 `brew` 时加载。
+- Oh My Zsh 的 z、git；检测到 `brew` 命令时才加载 brew snippet。
 - romkatv/powerlevel10k 与当前 `~/.p10k.zsh` 的逐字副本。
 
-nvm、pyenv 和手写 Android PATH 被 Nix/Home Manager 取代。私人局域网变量、Git 姓名邮箱和令牌没有写进配置，可复制 `~/.config/zsh/local.zsh.example` 为 `local.zsh` 后自行填写。
+zinit 本体由 `flake.lock` 锁定，但 zinit 下载的插件和 snippets 继续使用其原生生命周期，并不由 `flake.lock` 固定。当前默认 profile 也没有启用 Node、Python 或 Android 模块，因此不能把 nvm、pyenv 或手写 Android PATH 视为已经由 Nix 工具链替代。
 
 ## 1. Windows 侧准备
 
@@ -342,7 +351,7 @@ systemctl show nix-daemon.service -p Environment
 全新镜像可能尚未全局开启 `nix-command` / `flakes`，因此首次命令显式开启：
 
 ```bash
-nix --extra-experimental-features 'nix-command flakes' flake lock
+nix --extra-experimental-features 'nix-command flakes' flake metadata .
 
 nix --extra-experimental-features 'nix-command flakes' flake show
 ```
@@ -384,7 +393,7 @@ sudo env \
   nixos-rebuild switch --flake .#wsl
 ```
 
-第一次构建会下载 Android SDK/NDK、Flutter、Rust、LLVM、JDK、Docker、Node 等大量依赖。数 GiB 的网络下载和十余 GiB 的 Nix store 数据属于正常现象。
+按当前默认 imports，第一次构建会下载 NixOS 基础系统、Docker、通用命令行工具、zsh/zinit，以及 WSL/WSLg 所需的图形和诊断工具；不会下载仓库中默认未启用的 Android SDK/NDK、Flutter、Rust、完整 C/C++ 工具链、JDK 或 Node。实际下载量取决于现有 Nix store 和二进制缓存命中情况。
 
 如果进度长时间停在：
 
@@ -429,7 +438,7 @@ wsl -d NixOS
 重新进入 NixOS 后执行：
 
 ```bash
-nix flake metadata github:NixOS/nixpkgs
+nix flake metadata .
 
 docker --version
 
@@ -487,21 +496,21 @@ sudo nixos-rebuild switch --flake .#wsl
 docker run --rm hello-world
 ```
 
-最后执行项目自带检查：
+项目还提供一个完整开发能力盘点脚本：
 
 ```bash
 bash scripts/doctor.sh
 ```
 
-也可以逐项确认：
+该脚本会同时检查当前已启用工具和默认未启用的 Java、Android、Rust、Node、Python、Flutter、C/C++ 工具，因此按当前默认 profile 运行时会报告多项 `MISSING` 并返回非零状态。这是能力清单结果，不表示基础系统切换失败。
+
+当前默认 profile 可重点确认：
 
 ```bash
-java -version
-adb version
-rustc --version
-node --version
-pnpm --version
-flutter doctor -v
+command -v git zsh docker nixfmt nil
+git --version
+zsh --version
+docker --version
 ```
 
 WSLg：
@@ -509,8 +518,9 @@ WSLg：
 ```bash
 glxinfo -B
 vulkaninfo --summary
-android-studio
 ```
+
+`android-studio` 只有在启用 Android Home Manager 模块并成功重建后才会存在。
 
 ---
 
@@ -662,14 +672,16 @@ https://dl.google.com/android/repository/
 
 ---
 
-## 6. 为什么第一次构建特别慢
+## 6. 第一次构建会包含什么
 
-第一次 `nixos-rebuild` 需要把整套开发环境加入 `/nix/store`，包括 Android SDK/NDK、Flutter、Rust、JDK、LLVM、Node、Docker 等。
+第一次 `nixos-rebuild` 需要把当前 host 的系统 closure 加入 `/nix/store`。按当前默认配置，WSL 主要包含 NixOS 基础系统、Docker、通用 Home Manager 工具、zsh/zinit、字体和 WSLg 诊断工具；原生主机还会包含 Niri、Noctalia、greetd、Ghostty、PipeWire 与 NetworkManager。
 
-进度类似：
+Android SDK/NDK、Flutter、Rust、JDK、Node 和完整 C/C++ 工具链当前没有导入，不属于默认 closure。只有将对应开发模块启用后，后续重建才会下载它们，并可能显著增加 `/nix/store` 占用。
+
+构建过程中可能看到类似进度：
 
 ```text
-[0/733 built, ... copied (.../11.8 GiB), .../5.6 GiB DL]
+[0/N built, ... copied (...), ... DL]
 ```
 
 并不意味着每次重建都会重新下载这些内容。
@@ -683,11 +695,15 @@ sudo nixos-rebuild switch --flake .#wsl
 通常会快得多。
 
 
-## 7. Android、ADB 与模拟器
+## 7. 可选 Android、ADB 与模拟器配置
 
-Android SDK 位于 Nix store 的只读组合结果，`ANDROID_SDK_ROOT`、`ANDROID_HOME`、`JAVA_HOME` 和 NDK 路径已自动设置。SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
+Android Home Manager 模块当前默认未导入，因此默认 profile 中没有 `android-studio`、`adb`、JDK、Gradle、Kotlin、Android SDK/NDK，也不会设置 `ANDROID_SDK_ROOT`、`ANDROID_HOME`、`JAVA_HOME` 或 NDK 路径。
 
-WSL 内默认不包含 Android Emulator/system image。推荐方案是：
+如果确认要把 Android 工具链全局加入 Home Manager，可在 `home/default.nix` 中启用 `./modules/development/android.nix` 后重建。启用后，SDK 位于 Nix store 的只读组合结果；SDK 版本应通过修改 `home/modules/development/android.nix` 后重建，不要在 Android Studio 的 SDK Manager 中直接修改该只读 SDK。
+
+注意，`home/default.nix` 当前由三个 host 共用，而 VMware 是 `aarch64-linux`。在没有增加 host/platform 条件前，直接启用 Android module 会同时作用于 VMware；应先验证 Android Studio 和 Android SDK 中预编译工具的 ARM Linux 兼容性。
+
+Android module 自身把 Emulator 和 system image 保持为关闭状态。启用该 module 后，在 WSL 中仍推荐：
 
 1. 在 Windows 侧运行 Android Emulator，项目源码与 Gradle 构建留在 WSL；或
 2. 使用无线调试的 `adb pair` / `adb connect`；或
@@ -701,7 +717,7 @@ usbipd bind --busid <BUSID>
 usbipd attach --wsl --busid <BUSID>
 ```
 
-然后在 WSL 中运行 `adb devices`。如确实要实验 WSL 内模拟器，把 Android 模块中的 `includeEmulator` 改成 `true` 并添加 system image；这会显著增加下载体积，且图形/KVM 加速兼容性取决于当前 WSL 版本。
+启用 Android module 后，可在 WSL 中运行 `adb devices`。如确实要实验 WSL 内模拟器，把 Android 模块中的 `includeEmulator` 改成 `true` 并添加 system image；这会显著增加下载体积，且图形/KVM 加速兼容性取决于当前 WSL 版本。
 
 ## 8. Docker 后端
 
