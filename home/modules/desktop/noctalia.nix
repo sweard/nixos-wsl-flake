@@ -69,7 +69,10 @@ in
   ];
 
   # Niri 的终端快捷键由本用户配置引用，因此由 Home Manager 安装。
-  home.packages = [ pkgs.ghostty ];
+  home.packages = with pkgs; [
+    ghostty
+    wdisplays
+  ];
 
   programs.noctalia = {
     enable = true;
