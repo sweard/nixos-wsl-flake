@@ -1,0 +1,43 @@
+flake.nix
+  s_025bca622fb7a8::t_2bfaa2e486ac48 65,134-135,137,142,144
+  s_025bca622fb7a8::t_6f2971598e3a67 66-70,136,138-141,143,145
+  s_025bca622fb7a8::t_cc084ae43d3131 2
+  s_025bca622fb7a8::t_dae9d72d6f8c65 146
+docs/README.md
+  s_025bca622fb7a8::t_907e3dcb88dcd3 15
+README.md
+  s_025bca622fb7a8::t_cc084ae43d3131 1
+  s_025bca622fb7a8::t_907e3dcb88dcd3 3,7,17,19,48,63,189,207,260,262,275,281,284,291,293-299,889,893-894
+  s_025bca622fb7a8::t_7ce1d6b2420d01 264
+  s_025bca622fb7a8::t_cfd58efdfae0a3 261,263,265-274,276-280,282-283,285-290,292,890-892
+  s_025bca622fb7a8::t_fd0e5204480224 58,192
+  s_025bca622fb7a8::t_9092125c46cd6b 895
+tests/unified-platform-architecture.sh
+  s_025bca622fb7a8::t_2bfaa2e486ac48 42,68-69,71-73,76-83,139
+  s_025bca622fb7a8::t_6f2971598e3a67 70
+scripts/check.sh
+  s_025bca622fb7a8::t_6f2971598e3a67 36
+  s_025bca622fb7a8::t_2bfaa2e486ac48 37
+docs/architecture.md
+  s_025bca622fb7a8::t_907e3dcb88dcd3 1,5,13,17,30,38
+tests/native-desktop-noctalia.sh
+  s_025bca622fb7a8::t_7ce1d6b2420d01 32-40,241
+home/generic-linux.nix
+  s_025bca622fb7a8::t_2bfaa2e486ac48 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "82174ac79be5e874423307618a291c2e79619086",
+  "prompts": {},
+  "sessions": {
+    "s_025bca622fb7a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01429-c4aa-7cf3-83b0-042fcae6006e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
