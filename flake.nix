@@ -1,5 +1,5 @@
 {
-  description = "Multi-host NixOS and nix-darwin development environments";
+  description = "Multi-platform NixOS, nix-darwin, and Home Manager environments";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -59,6 +59,12 @@
         username = "sbwoan";
         hostName = "Jeffs-MacBook-Pro";
         system = "aarch64-darwin";
+        timeZone = "Asia/Shanghai";
+      };
+
+      genericLinuxUserSettings = {
+        username = "jeff";
+        system = "aarch64-linux";
         timeZone = "Asia/Shanghai";
       };
 
@@ -123,6 +129,19 @@
           nix-homebrew.darwinModules.nix-homebrew
           ./hosts/macbook
         ];
+      };
+
+      # 非 NixOS Linux 只复用用户工具与 dotfiles；系统服务继续由宿主发行版管理。
+      homeConfigurations."jeff-aarch64-linux" = home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs {
+          system = genericLinuxUserSettings.system;
+          config.allowUnfree = true;
+        };
+        extraSpecialArgs = {
+          inherit inputs;
+          userSettings = genericLinuxUserSettings;
+        };
+        modules = [ ./home/generic-linux.nix ];
       };
 
       formatter = {

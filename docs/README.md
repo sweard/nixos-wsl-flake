@@ -12,4 +12,4 @@
 scripts/check.sh
 ```
 
-该入口先执行结构回归测试，再检查 Darwin inputs 是否已经进入 `flake.lock`，最后真实求值四个 host 输出。
+该入口先执行结构回归测试，再检查 Darwin inputs 是否已经进入 `flake.lock`，最后真实求值四个系统 host 和 generic Linux Home Manager 输出。

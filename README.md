@@ -1,10 +1,10 @@
-# NixOS + nix-darwin 多主机开发环境
+# NixOS + nix-darwin + Home Manager 多平台开发环境
 
-这套 Flake 在同一个 `master` 分支中管理四个输出：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 VMware UEFI 虚拟机、`x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机，以及 `aarch64-darwin` 的 MacBook。NixOS 与 nix-darwin 管系统层，`hosts/` 只装配具体主机，Home Manager 管所有平台的用户工具和 dotfiles。
+这套 Flake 在同一个 `master` 分支中管理四个系统输出和一个独立 Home Manager 输出：`x86_64-linux` 的 NixOS-WSL 2、`aarch64-linux` 的 NixOS VMware UEFI 虚拟机、`x86_64-linux` 的 Ryzen 9 7950X + RTX 4090 物理机、`aarch64-darwin` 的 MacBook，以及 Ubuntu/Arch Linux ARM64 上用户 `jeff` 的 standalone Home Manager。NixOS 与 nix-darwin 管对应平台的系统层，非 NixOS Linux 保留自己的系统管理方式，Home Manager 复用用户工具和 dotfiles。
 
 当前架构约束见 [`docs/architecture.md`](docs/architecture.md)，历史迁移方案统一归档在 `docs/archive/`，不作为当前配置依据。
 
-安装 Nix 后可运行 `scripts/check.sh`，统一执行结构回归、lock 完整性检查和四个 host 的真实求值。
+安装 Nix 后可运行 `scripts/check.sh`，统一执行结构回归、lock 完整性检查、四个系统 host 和 generic Linux Home Manager 的真实求值。
 
 ## Flake 输出与主机结构
 
@@ -14,8 +14,9 @@
 | `.#vmware` | `nixos-vmware` | aarch64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
 | `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
 | `.#Jeffs-MacBook-Pro` | `Jeffs-MacBook-Pro` | Apple Silicon macOS | nix-darwin、现有 Homebrew 接管、Darwin Home Manager profile |
+| `.#jeff-aarch64-linux` | 用户 `jeff` | Apple Silicon VMware 中的 Ubuntu/Arch Linux ARM64 | standalone Home Manager、generic Linux 集成 |
 
-四个输出共用 `home/common.nix` 中的通用命令行工具和 zsh 配置。三个 NixOS 输出共用 NixOS base、Docker 与 Home Manager 装配；VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager。硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+五个输出共用 `home/common.nix` 中的通用命令行工具和 zsh 配置。三个 NixOS 输出共用 NixOS base、Docker 与 Home Manager 装配；VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager。Ubuntu/Arch Linux 只加载用户层，不导入任何 NixOS module。硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
 
 当前目录边界如下：
 
@@ -44,6 +45,7 @@
 └── home/                   # 所有平台共用的 Home Manager 层
     ├── common.nix
     ├── linux.nix
+    ├── generic-linux.nix
     ├── darwin.nix
     ├── native-desktop.nix
     └── modules/
@@ -53,11 +55,12 @@
         └── shell/
 ```
 
-`home/` 不是 Darwin 的替代分支，而是四个输出都会加载的用户层。实际组合关系是：
+`home/` 不是 Darwin 的替代分支，而是五个输出都会加载的用户层。实际组合关系是：
 
 ```text
 WSL                  -> home/linux.nix           -> home/common.nix
 VMware / physical    -> home/native-desktop.nix -> home/linux.nix -> home/common.nix
+Ubuntu / Arch Linux  -> home/generic-linux.nix  -> home/linux.nix -> home/common.nix
 MacBook              -> home/darwin.nix          -> home/common.nix
 ```
 
@@ -183,9 +186,10 @@ VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并�
 | Shell | zsh、由 Flake 锁定的 zinit、Powerlevel10k、现有 p10k 配置和由 zinit 管理的插件 |
 | WSL / WSLg | usbutils、pciutils、Mesa/OpenGL、Vulkan、Wayland 和 X11 诊断工具、MesloLGS Nerd Font |
 | 原生桌面 | VMware 与物理机启用 Niri、Noctalia、greetd/tuigreet、Ghostty、xwayland-satellite、PipeWire、NetworkManager |
+| 非 NixOS Linux | 用户 `jeff` 在 Ubuntu/Arch Linux ARM64 上通过 standalone Home Manager 使用通用 CLI 和 zsh；系统服务与 GPU 集成仍由宿主发行版管理 |
 | macOS | nix-darwin、nix-homebrew，以及由 Home Manager 管理的通用用户工具和 zsh |
 
-Git 身份当前由 `home/modules/cli.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到四个输出。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
+Git 身份当前由 `home/modules/cli.nix` 声明为 `sweord <sweord@hotmail.com>`，并会应用到五个输出。私人网络变量、令牌和其他秘密没有写入仓库；可复制 `~/.config/zsh/local.zsh.example` 为 `~/.config/zsh/local.zsh` 后自行填写。
 
 ## 仓库保留但默认未启用的开发模块
 
@@ -200,7 +204,7 @@ Git 身份当前由 `home/modules/cli.nix` 声明为 `sweord <sweord@hotmail.com
 | Python | Python 3、virtualenv、pipx | 未导入 |
 | Flutter | Nixpkgs 26.05 中的 Flutter | 未导入 |
 
-这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若在 `home/common.nix` 直接启用非 Android 模块，会同时影响 Linux 与 macOS；若只针对某类环境，应改在 `home/linux.nix`、`home/darwin.nix` 或 `home/native-desktop.nix` 导入。启用前还需确认 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin` 的包兼容性。Rust module 自己局部加载 overlay，不再改变所有 NixOS host 的全局 `pkgs`。
+这些文件是从既有开发环境迁移时保留下来的候选配置，不代表当前系统已经安装对应工具。若在 `home/common.nix` 直接启用非 Android 模块，会同时影响 WSL、原生 NixOS、generic Linux 与 macOS；若只针对某类环境，应改在 `home/linux.nix`、`home/generic-linux.nix`、`home/darwin.nix` 或 `home/native-desktop.nix` 导入。启用前还需确认 `x86_64-linux`、`aarch64-linux` 和 `aarch64-darwin` 的包兼容性。Rust module 自己局部加载 overlay，不再改变所有 NixOS host 的全局 `pkgs`。
 
 当前默认配置没有直接安装 `pkg-config`、Node、Python、Rust、JDK、Android SDK 或 Flutter。项目需要这些工具时，优先考虑项目自己的 `devShell`；若确实希望全局提供，再启用对应 Home Manager 模块。
 
@@ -252,6 +256,46 @@ sudo darwin-rebuild switch --flake .#Jeffs-MacBook-Pro
 ```
 
 当前 Darwin 配置只接入系统基础、Homebrew 管理入口和通用 Home Manager profile，不启用 Niri/Noctalia、Docker、WSLg 或 WSL 代理。
+
+## Ubuntu / Arch Linux standalone Home Manager
+
+generic Linux 输出固定使用 ARM64 用户 `jeff`，组合关系为 `home/generic-linux.nix -> home/linux.nix -> home/common.nix`。它只管理用户目录中的 CLI、Git、zsh 和 dotfiles；Ubuntu 或 Arch Linux 自己继续管理 SSH、Docker、桌面、网络、音频、驱动和其他系统服务。由于当前 profile 没有 GUI 应用，非 NixOS GPU 桥接也保持关闭。
+
+先在 Ubuntu 安装多用户 Nix 并启用 `nix-command flakes`，再获取仓库：
+
+```bash
+git clone https://github.com/sweard/nixos-wsl-flake.git
+cd nixos-wsl-flake
+```
+
+首次应用时使用备份后缀保护已有的 `.zshrc`、`.gitconfig` 等文件：
+
+```bash
+nix run github:nix-community/home-manager/release-26.05 -- \
+  switch -b hm-backup --flake .#jeff-aarch64-linux
+```
+
+若同名的 `*.hm-backup` 已经存在，Home Manager 会停止而不是覆盖它；应先检查并移动旧备份。后续日常应用：
+
+```bash
+home-manager switch --flake ~/nixos-wsl-flake#jeff-aarch64-linux
+```
+
+Home Manager 会安装并配置 zsh，但登录 shell 仍由系统账户数据库决定。Ubuntu 需要默认进入 zsh 时执行：
+
+```bash
+sudo apt install -y zsh
+chsh -s /usr/bin/zsh
+```
+
+Arch Linux 对应命令：
+
+```bash
+sudo pacman -S zsh
+chsh -s /usr/bin/zsh
+```
+
+注销后重新登录生效。不要在 Ubuntu 或 Arch Linux 上运行 `nixos-rebuild`，也不要改用 `home/native-desktop.nix`；`.#vmware` 是完整 NixOS 系统输出，不适用于这些发行版。
 
 ## 1. Windows 侧准备
 
@@ -840,6 +884,13 @@ MacBook 更新并重建：
 ```bash
 nix flake update
 sudo darwin-rebuild switch --flake .#Jeffs-MacBook-Pro
+```
+
+Ubuntu/Arch Linux 更新并应用用户环境：
+
+```bash
+nix flake update
+home-manager switch --flake .#jeff-aarch64-linux
 ```
 
 以下代次、回滚与每周 GC 说明只适用于三个 NixOS 输出：

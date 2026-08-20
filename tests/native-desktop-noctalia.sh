@@ -29,6 +29,15 @@ require_fixed() {
   fi
 }
 
+require_active_regex() {
+  local file=$1 pattern=$2 description=$3
+  if [[ ! -f "$file" ]]; then
+    fail "$description (file missing: ${file#$REPO_ROOT/})"
+  elif ! active_text "$file" | rg --quiet -- "$pattern"; then
+    fail "$description (missing active pattern in ${file#$REPO_ROOT/})"
+  fi
+}
+
 # Ignore comments when checking active configuration. This deliberately does
 # not scan docs/, where historical architecture notes retain old component
 # names for context.
@@ -229,7 +238,7 @@ require_fixed "$NATIVE" 'services.greetd.enable = true;' \
   'native desktop uses greetd'
 require_fixed "$NATIVE" 'tuigreet' \
   'greetd uses tuigreet'
-require_fixed "$NOCTALIA" 'pkgs.ghostty' \
+require_active_regex "$NOCTALIA" '^[[:space:]]+ghostty[[:space:]]*$' \
   'Home Manager installs the terminal referenced by the Niri config'
 forbid_active "$NATIVE" 'ghostty' \
   'Ghostty is a user application and must not remain a NixOS system package'

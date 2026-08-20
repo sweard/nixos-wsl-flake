@@ -33,7 +33,8 @@ for attribute in \
   nixosConfigurations.wsl.config.system.build.toplevel.drvPath \
   nixosConfigurations.vmware.config.system.build.toplevel.drvPath \
   nixosConfigurations.physical.config.system.build.toplevel.drvPath \
-  darwinConfigurations.Jeffs-MacBook-Pro.system.drvPath; do
+  darwinConfigurations.Jeffs-MacBook-Pro.system.drvPath \
+  homeConfigurations.jeff-aarch64-linux.activationPackage.drvPath; do
   nix "${nix_flags[@]}" eval --raw ".#$attribute" >/dev/null
   printf 'PASS: evaluated %s\n' "$attribute"
 done

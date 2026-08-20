@@ -39,6 +39,7 @@ for path in \
   home/common.nix \
   home/modules/cli.nix \
   home/linux.nix \
+  home/generic-linux.nix \
   home/darwin.nix \
   home/native-desktop.nix \
   hosts/macbook/default.nix \
@@ -64,8 +65,22 @@ require_text flake.nix 'homeProfile = ./home/linux.nix;' 'WSL selects the Linux 
 require_text flake.nix 'homeProfile = ./home/native-desktop.nix;' \
   'native NixOS selects the desktop Home profile'
 require_text flake.nix 'homeProfile = ./home/darwin.nix;' 'macOS selects the Darwin Home profile'
+require_text flake.nix 'homeConfigurations."jeff-aarch64-linux"' \
+  'generic Linux standalone Home Manager output exists'
+require_text flake.nix 'username = "jeff";' \
+  'generic Linux Home Manager output targets the jeff account'
+require_text flake.nix 'modules = [ ./home/generic-linux.nix ];' \
+  'generic Linux output selects the generic Linux Home profile'
 
 require_text home/linux.nix './common.nix' 'Linux Home profile imports common Home config'
+require_text home/generic-linux.nix './linux.nix' \
+  'generic Linux Home profile extends the shared Linux Home config'
+require_text home/generic-linux.nix 'targets.genericLinux' \
+  'generic Linux Home profile enables non-NixOS Linux integration'
+require_text home/generic-linux.nix 'gpu.enable = false;' \
+  'CLI-only generic Linux profile does not install a GPU integration bridge'
+forbid_text home/generic-linux.nix './native-desktop.nix' \
+  'generic Linux Home profile must not import the native NixOS desktop profile'
 require_text home/darwin.nix './common.nix' 'Darwin Home profile imports common Home config'
 require_text home/common.nix './modules/cli.nix' \
   'common Home profile imports the clearly named CLI module'
@@ -121,4 +136,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-printf 'PASS: unified NixOS / Darwin architecture\n'
+printf 'PASS: unified NixOS / Darwin / generic Linux architecture\n'
