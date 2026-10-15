@@ -8,6 +8,7 @@ cd "$REPO_ROOT"
 
 bash tests/native-desktop-noctalia.sh
 bash tests/unified-platform-architecture.sh
+bash tests/physical-workstation.sh
 
 if ! command -v nix >/dev/null 2>&1; then
   printf 'FAIL: Nix is required for lock validation and real module evaluation\n' >&2
@@ -38,5 +39,10 @@ for attribute in \
   nix "${nix_flags[@]}" eval --raw ".#$attribute" >/dev/null
   printf 'PASS: evaluated %s\n' "$attribute"
 done
+
+nix "${nix_flags[@]}" eval --json \
+  --apply "$(< tests/physical-workstation.nix)" \
+  .#nixosConfigurations >/dev/null
+printf 'PASS: physical option values and other-host isolation\n'
 
 printf 'PASS: lock and all host evaluations\n'

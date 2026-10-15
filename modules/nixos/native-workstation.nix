@@ -7,7 +7,7 @@
     ./native-desktop.nix
   ];
 
-  # VMware 与物理机统一使用 UEFI，以及安装文档约定的磁盘标签。
+  # 原生主机共用 UEFI；默认磁盘标签可由 host 覆盖，physical 使用独立 SSD 的 UUID。
   boot.loader = {
     systemd-boot = {
       enable = true;

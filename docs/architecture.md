@@ -6,8 +6,8 @@
 
 ## 边界
 
-- `hosts/` 只描述某台主机采用哪些系统模块。
-- `modules/nixos/` 只包含 NixOS 系统模块；WSL 代理仅由 WSL host 导入。
+- `hosts/` 描述主机装配及主机专属的硬件、磁盘和启动策略。
+- `modules/nixos/` 只包含 NixOS 系统模块；`wsl-proxy.nix` 仅由 WSL 导入，`native-proxy.nix` 仅由 physical 导入。
 - `modules/darwin/` 只包含 nix-darwin 系统模块；macOS 默认不启用代理。
 - `modules/home-manager.nix` 是 NixOS 与 nix-darwin 共用的 Home Manager 装配层。
 - 非 NixOS Linux 不经过系统 module 装配，直接由 `homeConfigurations.jeff-aarch64-linux` 调用 standalone Home Manager。
@@ -26,6 +26,8 @@
 
 - WSL：NixOS base + WSL/WSLg + Docker + WSL proxy；Home Manager 使用 `home/linux.nix`。
 - VMware / physical：NixOS base + native workstation/desktop；Home Manager 使用 `home/native-desktop.nix`。
+  - VMware 保持共享的磁盘标签和无固定代理配置。
+  - physical 只使用 AMD 核显，独立 SSD 的 UUID 覆盖共享磁盘默认值；通过固件菜单切换 Windows，并独立启用 Mihomo 和国内二进制缓存。安装步骤见 [`physical-install.md`](./physical-install.md)。
 - MacBook：Darwin base + Homebrew；Home Manager 使用 `home/darwin.nix`。
 - Ubuntu / Arch Linux：系统仍由宿主发行版管理；独立 Home Manager 输出使用 `home/generic-linux.nix`，仅复用用户工具和 dotfiles。
 
@@ -34,6 +36,7 @@
 - Linux 与 Darwin 使用各自的稳定 nixpkgs 分支，相关 input 使用 `follows` 避免同一平台重复锁定。
 - Homebrew 由 `nix-homebrew` 安装/接管，由 nix-darwin `homebrew.*` 声明包；首次落地不自动清理或升级现有包。
 - 代理配置不得进入跨平台 base；macOS 只有确认需要后才新增独立模块。
+- Mihomo 订阅与节点凭据保存在运行时的 `/etc/mihomo/config.yaml`，不能写入 Git、Nix 字符串内容或 Nix store。当前 physical 采用显式代理，不启用 TUN。
 - 用户应用和 dotfiles 由 Home Manager 管理；daemon、驱动、会话兼容层和系统权限由 NixOS 或 nix-darwin 管理。
 - 非 NixOS Linux 不导入 NixOS modules 或原生桌面 profile；Docker、SSH、桌面会话和其他系统服务继续使用宿主发行版的管理方式。
 - Android 只能通过 `modules/nixos/android-development.nix` 启用，使 SDK license 与 Home Manager 工具链保持原子化。

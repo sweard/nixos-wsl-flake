@@ -12,11 +12,11 @@
 |---|---|---|---|
 | `.#wsl` | `nixos-wsl` | Windows 11 / NixOS-WSL 2 | WSL、WSLg、Windows 驱动、FLClash daemon 代理 |
 | `.#vmware` | `nixos-vmware` | aarch64 VMware UEFI 虚拟机 | open-vm-tools、VMware 存储/网络模块 |
-| `.#physical` | `nixos-physical` | Ryzen 9 7950X + RTX 4090 物理机 | AMD 微码、KVM、NVIDIA open kernel module |
+| `.#physical` | `nixos-physical` | Ryzen 9 7950X 物理机，仅使用核显 | AMD 微码、AMDGPU、独立 SSD/ESP、Mihomo、国内二进制缓存 |
 | `.#Jeffs-MacBook-Pro` | `Jeffs-MacBook-Pro` | Apple Silicon macOS | nix-darwin、现有 Homebrew 接管、Darwin Home Manager profile |
 | `.#jeff-aarch64-linux` | 用户 `jeff` | Apple Silicon VMware 中的 Ubuntu/Arch Linux ARM64 | standalone Home Manager、generic Linux 集成 |
 
-五个输出共用 `home/common.nix` 中的通用命令行工具和 zsh 配置。三个 NixOS 输出共用 NixOS base、Docker 与 Home Manager 装配；VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI、磁盘标签约定，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager。Ubuntu/Arch Linux 只加载用户层，不导入任何 NixOS module。硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
+五个输出共用 `home/common.nix` 中的通用命令行工具和 zsh 配置。三个 NixOS 输出共用 NixOS base、Docker 与 Home Manager 装配；VMware 与物理机进一步共用 `native-workstation.nix` 中的 UEFI 基础，以及 `native-desktop.nix` 中的 Niri、Noctalia、PipeWire 和 NetworkManager。VMware 沿用磁盘标签，physical 在自己的硬件配置中覆盖为 UUID，并独立导入代理模块。Ubuntu/Arch Linux 只加载用户层，不导入任何 NixOS module。硬件差异只保留在各自的 `hosts/*/hardware.nix` 中。
 
 当前目录边界如下：
 
@@ -37,6 +37,7 @@
 │   │   ├── wsl.nix
 │   │   ├── wslg.nix
 │   │   ├── wsl-proxy.nix
+│   │   ├── native-proxy.nix   # 仅 physical 导入 Mihomo 与国内缓存
 │   │   ├── native-workstation.nix
 │   │   └── native-desktop.nix
 │   └── darwin/             # 只在 nix-darwin 求值的系统模块
@@ -98,7 +99,7 @@ sudo nixos-rebuild boot --flake .#vmware
 sudo reboot
 ```
 
-物理机使用：
+物理机先按[安装说明](docs/physical-install.md)替换磁盘 UUID 占位并准备 Mihomo 配置，再使用：
 
 ```bash
 sudo nixos-rebuild boot --flake .#physical
@@ -125,11 +126,11 @@ noctalia config validate
 noctalia msg --help
 ```
 
-若新会话无法登录或验证失败，可在 boot loader 中选择上一代 generation 回退。WSL 与开发环境不导入这套原生桌面模块，不受此次迁移影响。VMware 中仍应启用虚拟机 3D 加速；物理机已为 RTX 4090 启用 NVIDIA DRM modesetting，这是 Niri Wayland 会话所需的基础条件。
+若新会话无法登录或验证失败，可在 boot loader 中选择上一代 generation 回退。WSL 与开发环境不导入这套原生桌面模块，不受此次迁移影响。VMware 中仍应启用虚拟机 3D 加速；物理机使用 7950X 核显与 AMDGPU，NixOS 不加载 NVIDIA/Nouveau 驱动，只使用接在主板视频输出上的显示器。
 
-### VMware 与物理机共同安装约定
+### VMware 安装约定
 
-原生主机配置采用一个明确、可复现的磁盘接口：
+VMware 使用共享模块的默认磁盘标签；physical 不适用本节的按标签挂载命令，见下方物理机安装说明。
 
 - 固件模式：UEFI；当前配置未启用 Secure Boot。
 - 根文件系统：ext4，文件系统标签为 `nixos`。
@@ -150,12 +151,6 @@ sudo mount /dev/disk/by-label/boot /mnt/boot
 sudo nixos-install --flake .#vmware
 ```
 
-物理机安装使用：
-
-```bash
-sudo nixos-install --flake .#physical
-```
-
 安装完成但重启前，为普通用户设置密码：
 
 ```bash
@@ -164,18 +159,23 @@ passwd nixos
 exit
 ```
 
-后续分别重建：
+后续重建：
 
 ```bash
 sudo nixos-rebuild switch --flake .#vmware
-sudo nixos-rebuild switch --flake .#physical
 ```
 
 VMware 虚拟机应在虚拟机设置中选择 UEFI、关闭 Secure Boot，并按需开启 3D 加速。`virtualisation.vmware.guest.enable` 会安装并启动 open-vm-tools。
 
-`physical` adapter 专门针对 Ryzen 9 7950X + RTX 4090：启用 AMD 微码、`kvm-amd`、NVIDIA DRM modesetting 和 NVIDIA open kernel module。若物理机的 CPU、GPU、启动方式或磁盘标签不同，应先调整 `hosts/physical/hardware.nix` 与 `modules/nixos/native-workstation.nix`，不要直接套用。
+### physical 核显双系统安装
 
-原生主机和 MacBook 都没有导入代理模块，不会假设 `127.0.0.1:7890` 存在代理；只有 `.#wsl` 导入 `wsl-proxy.nix`，保留当前 Windows FLClash 代理设计。若 macOS 日后确实需要固定代理，应新增独立的 Darwin 模块，不要复用 WSL 的 systemd 配置。
+完整步骤见 [`docs/physical-install.md`](docs/physical-install.md)。physical 使用空白 SSD 上独立的 ext4 根分区和 FAT32 ESP，不挂载 Windows 分区，不增加跨盘 Windows 引导项；先通过主板 UEFI 启动菜单选择 NixOS 或 Windows。
+
+安装前必须替换 `hosts/physical/hardware.nix` 中的 `REPLACE_WITH_NIXOS_ROOT_UUID` 与 `REPLACE_WITH_NIXOS_ESP_UUID`，并把完整 Mihomo 配置放到目标系统的 `/etc/mihomo/config.yaml`。占位状态不能直接安装或重建到实机。
+
+只有 physical 导入 `native-proxy.nix`：Mihomo 提供 `127.0.0.1:7890` 显式代理，用户会话、Nix daemon 和 Docker daemon 使用该代理；清华二进制缓存直连并优先于默认官方缓存。订阅凭据不进入 Git 或 Nix store。它不是全局透明代理，也不会自动代理 Docker 容器内的流量。
+
+WSL 继续单独使用 `wsl-proxy.nix` 和 Windows FLClash。VMware、MacBook 与 generic Linux Home Manager 没有新增代理假设或镜像设置；不要为 physical 修改共享磁盘默认值或导入 WSL 代理模块。
 
 ## 当前实际启用的环境
 
@@ -866,7 +866,7 @@ usbipd attach --wsl --busid <BUSID>
 ## 9. WSL 下 7950X 与 RTX 4090 的职责划分
 
 - 本节只描述 `.#wsl`。7950X 的微码、核心调度和 WSL Linux 内核由 Windows/WSL 管理，NixOS-WSL 不安装裸机 AMD 微码模块。Nix 构建已使用 `max-jobs = auto` 和全部可用核心。
-- 在 `.#wsl` 中，RTX 4090 的内核驱动同样安装在 Windows，不要启用 `hardware.nvidia`。`wsl.useWindowsDriver = true` 会接入 Windows 提供的 WSL 图形库，供 WSLg/OpenGL 使用；`.#physical` 则由 NixOS 管理 NVIDIA 驱动。
+- 在 `.#wsl` 中，RTX 4090 的内核驱动同样安装在 Windows，不要启用 `hardware.nvidia`。`wsl.useWindowsDriver = true` 会接入 Windows 提供的 WSL 图形库，供 WSLg/OpenGL 使用；`.#physical` 只启用 7950X 核显的 AMDGPU 驱动，不使用 RTX 4090。
 - 如果 Windows 驱动暴露了工具，可运行 `/usr/lib/wsl/lib/nvidia-smi` 检查 GPU。CUDA Toolkit 与 NVIDIA Container Toolkit 不在本次所选环境内，需要时应单独增加模块并独立验证。
 
 ## 10. 更新与回滚
