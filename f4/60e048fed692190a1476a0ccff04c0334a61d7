@@ -1,0 +1,44 @@
+hosts/physical/default.nix
+  s_199c15ee84a29a::t_6a2577bcfd036a 1,5,8-17
+docs/physical-install.md
+  s_199c15ee84a29a::t_77f22db28fbfef 1-218
+docs/architecture.md
+  s_199c15ee84a29a::t_77f22db28fbfef 9-10,29-30,39
+tests/physical-workstation.nix
+  s_199c15ee84a29a::t_f5ce75c4f5a295 1-5,10-34,39-59,64-79
+  s_199c15ee84a29a::t_f52d3443c591e2 6-9,35-38,60-63
+scripts/check.sh
+  s_199c15ee84a29a::t_f52d3443c591e2 44
+  s_199c15ee84a29a::t_f5ce75c4f5a295 11,43,45-46
+  s_199c15ee84a29a::t_c37eafac41a900 47
+hosts/physical/hardware.nix
+  s_199c15ee84a29a::t_6a2577bcfd036a 1-4,14,17-26,32-39
+modules/nixos/native-proxy.nix
+  s_199c15ee84a29a::t_6a2577bcfd036a 1-26
+modules/nixos/native-workstation.nix
+  s_199c15ee84a29a::t_6a2577bcfd036a 10
+docs/README.md
+  s_199c15ee84a29a::t_f5ce75c4f5a295 16
+  s_199c15ee84a29a::t_77f22db28fbfef 5
+README.md
+  s_199c15ee84a29a::t_77f22db28fbfef 15,19,40,102,129,131,133,162,170-176,178,869
+tests/physical-workstation.sh
+  s_199c15ee84a29a::t_d054f749c98549 16
+  s_199c15ee84a29a::t_f5ce75c4f5a295 1-15,17-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f460e048fed692190a1476a0ccff04c0334a61d7",
+  "prompts": {},
+  "sessions": {
+    "s_199c15ee84a29a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e2f-b322-71a2-95d9-5409585d8895",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "fangjian <fangjian@wondertechlabs.com>"
+    }
+  }
+}
